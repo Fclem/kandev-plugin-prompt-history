@@ -20,11 +20,11 @@ categories: ["tools"]
 # refuses the package if it is older, so an operator gets a clear error instead
 # of a plugin that loads and then fails on a missing API.
 #
-# 0.95.0 is the first release carrying the browser conversation facade
+# 0.94.1 is the first release carrying the browser conversation facade
 # (PR #3588) that ui/bundle.js calls through host.conversation. The messages
 # capability audit floor is 0.91.1; this plugin needs the facade, so the
-# facade floor is the binding minimum. Confirm at release cut.
-min_kandev_version: "0.95.0"
+# facade floor is the binding minimum.
+min_kandev_version: "0.94.1"
 
 # runtime.executables maps each supported platform to the binary kandev
 # spawns as a gRPC subprocess. `make package` cross-compiles all five;

@@ -37,7 +37,7 @@ instance via **Settings > Plugins**.
 
 ## Minimum host version
 
-`manifest.yaml` declares `min_kandev_version: "0.95.0"` — the first release
+`manifest.yaml` declares `min_kandev_version: "0.94.1"` — the first release
 carrying the browser conversation facade (PR #3588) that `ui/bundle.js` calls
 through `host.conversation`. The `messages` capability audit floor is `0.91.1`;
 this plugin needs the facade, so the facade floor is the binding minimum. A
@@ -53,8 +53,8 @@ Two caveats worth knowing:
   floor you declare. A successful sideload onto your dev instance is not
   evidence that your floor is correct — check it against the kandev history
   instead (`git merge-base --is-ancestor <commit> <tag>`).
-- Confirm the floor at release cut: `0.95.0` is the first stable release cut
-  after the PR #3588 merge.
+- The floor is confirmed at release cut: `0.94.1` is the first stable release
+  cut after the PR #3588 merge.
 
 ## How a plugin runs (gRPC subprocess, not HTTP)
 
