@@ -1,0 +1,56 @@
+# kandev plugin manifest — the single declarative contract between this
+# plugin and a kandev host. Everything kandev needs to install, spawn, and
+# route to this plugin is described here.
+#
+# `id` MUST match the Go module name in go.mod and the id you pass to
+# window.registerKandevPlugin(...) in ui/bundle.js, and it is the prefix of
+# every route kandev serves for you (/api/plugins/<id>/...). Keep the three
+# in sync when you rename.
+id: "kandev-plugin-prompt-history"
+api_version: 2
+version: "0.1.0"
+display_name: "Prompt History"
+description: "Task panel listing the active session's user prompts with parity to the shipped core panel."
+author: "kandev"
+repo_url: "https://github.com/kdlbs/kandev-plugin-prompt-history"
+categories: ["tools"]
+
+# min_kandev_version is the oldest kandev release this plugin will install
+# against. A release host compares it to its own version at install time and
+# refuses the package if it is older, so an operator gets a clear error instead
+# of a plugin that loads and then fails on a missing API.
+#
+# 0.95.0 is the first release carrying the browser conversation facade
+# (PR #3588) that ui/bundle.js calls through host.conversation. The messages
+# capability audit floor is 0.91.1; this plugin needs the facade, so the
+# facade floor is the binding minimum. Confirm at release cut.
+min_kandev_version: "0.95.0"
+
+# runtime.executables maps each supported platform to the binary kandev
+# spawns as a gRPC subprocess. `make package` cross-compiles all five;
+# `make package-host` builds just the current one. The paths are relative to
+# the package root and must match what the Makefile writes into server/.
+runtime:
+  type: binary
+  executables:
+    linux-amd64: "server/plugin-linux-amd64"
+    linux-arm64: "server/plugin-linux-arm64"
+    darwin-amd64: "server/plugin-darwin-amd64"
+    darwin-arm64: "server/plugin-darwin-arm64"
+    windows-amd64: "server/plugin-windows-amd64.exe"
+
+# capabilities gate what the host will do for you. Declare only what you use.
+# This plugin reads the active session's conversation through the browser
+# facade (api_read messages) and nothing else: the no-op backend needs no
+# events, state, secrets, or write access.
+capabilities:
+  api_read: ["messages"]
+
+# ui.bundle points at the ES module frontend half, built by ui/build.mjs into
+# ui/bundle.js and served by kandev from the extracted package at
+# GET /api/plugins/<id>/ui/bundle.js. ui.styles declares the plugin-owned
+# stylesheet the bundle depends on; the host's build never sees the bundle, so
+# the stylesheet owns every class it renders.
+ui:
+  bundle: "/ui/bundle.js"
+  styles: ["/ui/plugin.css"]

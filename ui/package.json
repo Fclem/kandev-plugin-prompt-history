@@ -1,0 +1,24 @@
+{
+  "name": "kandev-plugin-prompt-history-ui",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kandev/plugin-sdk": "file:../../kdlbs-kandev/apps/packages/plugin-sdk"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.0.0",
+    "@types/react": "^19.2.9",
+    "@types/react-dom": "^19.2.3",
+    "esbuild": "^0.25.0",
+    "jsdom": "^27.0.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

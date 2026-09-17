@@ -1,0 +1,7 @@
+# pnpm 11 reads build-script permissions from here, not package.json.
+# esbuild needs its postinstall to fetch the platform binary; it is the only
+# dependency with a required build script, so the others stay off.
+packages:
+  - "."
+onlyBuiltDependencies:
+  - esbuild
