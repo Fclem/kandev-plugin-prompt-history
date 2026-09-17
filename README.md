@@ -13,7 +13,7 @@ It is packaged into a versioned tarball and installed against a running kandev
 instance via **Settings > Plugins**.
 > [!NOTE]
 > This plugin was entirely designed and written by a local Qwen 3.8 27B IQ3
-> XXS model, replicated from an existing internal implementation rather than
+> XXS model, derived from an existing internal implementation rather than
 > implemented from scratch.
 
 ## What it contributes
