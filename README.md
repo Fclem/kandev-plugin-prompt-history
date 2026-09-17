@@ -11,9 +11,10 @@ or duplicating host-owned transport.
 
 It is packaged into a versioned tarball and installed against a running kandev
 instance via **Settings > Plugins**.
-This plugin was entirely designed and written by a local Qwen 3.8 27B IQ3
-XXS model, replicated from an existing internal implementation rather than
-implemented from scratch.
+> [!NOTE]
+> This plugin was entirely designed and written by a local Qwen 3.8 27B IQ3
+> XXS model, replicated from an existing internal implementation rather than
+> implemented from scratch.
 
 ## What it contributes
 
