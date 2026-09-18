@@ -449,6 +449,7 @@ function usePanelOlderPromptSentinel(opts: {
       observerGenerationRef.current !== generationRef.current ||
       !state.shouldPaginate ||
       state.messagesLoading ||
+      state.isLoadingMore ||
       !isCurrentGeometryEligible()
     ) {
       return;
@@ -478,6 +479,7 @@ function usePanelOlderPromptSentinel(opts: {
         sentinelNodeRef.current &&
         currentState.shouldPaginate &&
         !currentState.messagesLoading &&
+        !currentState.isLoadingMore &&
         isCurrentGeometryEligible()
       ) {
         void fireLoad();
@@ -531,7 +533,14 @@ function usePanelOlderPromptSentinel(opts: {
           return;
         }
         const state = stateRef.current;
-        if (!entry.isIntersecting || !state.shouldPaginate || state.messagesLoading) return;
+        if (
+          !entry.isIntersecting ||
+          !state.shouldPaginate ||
+          state.messagesLoading ||
+          state.isLoadingMore
+        ) {
+          return;
+        }
         void fireLoad();
       },
       { root, rootMargin: "0px 0px 200px 0px" },
@@ -570,7 +579,8 @@ function usePanelOlderPromptSentinel(opts: {
       !disarmedRef.current ||
       !intersectingRef.current ||
       !state.shouldPaginate ||
-      state.messagesLoading
+      state.messagesLoading ||
+      state.isLoadingMore
     ) {
       return;
     }
@@ -582,6 +592,7 @@ function usePanelOlderPromptSentinel(opts: {
       disarmedRef.current ||
       !state.shouldPaginate ||
       state.messagesLoading ||
+      state.isLoadingMore ||
       requestInFlightRef.current ||
       !isCurrentGeometryEligible()
     ) {
@@ -684,6 +695,29 @@ export function PromptHistoryPanel(props: PluginTaskPanelProps) {
     [conversation, state],
   );
 
+  const onScrollerKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.target !== event.currentTarget) return;
+      switch (event.key) {
+        case "ArrowUp":
+        case "ArrowDown":
+        case "PageUp":
+        case "PageDown":
+        case "Home":
+        case "End":
+        case " ":
+          onUserGesture();
+      }
+    },
+    [onUserGesture],
+  );
+  const onScrollerPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.target === event.currentTarget) onUserGesture();
+    },
+    [onUserGesture],
+  );
+
   if (state.kind === "passthrough") {
     return (
       <div ref={rootRef} className="ph-plugin-panel" data-testid="ph-plugin-panel">
@@ -735,8 +769,12 @@ export function PromptHistoryPanel(props: PluginTaskPanelProps) {
     <div ref={rootRef} className="ph-plugin-panel" data-testid="ph-plugin-panel">
       <div
         className="ph-plugin-scroller"
+        aria-label={t("panelTitle")}
+        tabIndex={shouldAutoLoad ? 0 : undefined}
         data-testid={SCROLL_TEST_ID}
         ref={scrollRef}
+        onKeyDown={shouldAutoLoad ? onScrollerKeyDown : undefined}
+        onPointerDown={shouldAutoLoad ? onScrollerPointerDown : undefined}
         onWheel={shouldAutoLoad ? onUserGesture : undefined}
         onTouchStart={shouldAutoLoad ? onUserGesture : undefined}
       >

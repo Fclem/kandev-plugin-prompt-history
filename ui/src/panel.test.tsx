@@ -713,8 +713,33 @@ describe("PromptHistoryPanel", () => {
     expect(loadB).toHaveBeenCalledTimes(1);
   });
 
-  it("disarms zero-progress pagination until a user gesture retries it", async () => {
-    const loadMore = vi.fn().mockResolvedValueOnce(0).mockResolvedValueOnce(1);
+  it("does not issue pagination while an external older-page load is active", async () => {
+    const loadMore = vi.fn().mockResolvedValue(1);
+    renderPanel(
+      makeMessages(
+        [message({ id: "m", content: "page", promptIndex: 2 })],
+        { hasMore: true, loadingMore: true, loadMore },
+      ),
+      makeTurns([]),
+    );
+    const observer = MockIntersectionObserver.instances.at(-1);
+    if (!observer) throw new Error("expected pagination observer");
+
+    await act(async () => {
+      observer.fire();
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+      await Promise.resolve();
+    });
+
+    expect(loadMore).not.toHaveBeenCalled();
+  });
+
+  it("retries disarmed pagination through keyboard and scrollbar gestures", async () => {
+    const loadMore = vi
+      .fn()
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(1);
     renderPanel(
       makeMessages(
         [message({ id: "m", content: "page", promptIndex: 2 })],
@@ -735,11 +760,19 @@ describe("PromptHistoryPanel", () => {
     });
     expect(loadMore).toHaveBeenCalledTimes(1);
 
+    const scroller = screen.getByTestId("ph-plugin-scroll");
+    expect(scroller.tabIndex).toBe(0);
     await act(async () => {
-      screen.getByTestId("ph-plugin-scroll").dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
+      scroller.dispatchEvent(new KeyboardEvent("keydown", { key: "PageDown", bubbles: true }));
       await Promise.resolve();
     });
     expect(loadMore).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      scroller.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(loadMore).toHaveBeenCalledTimes(3);
   });
 
   it("keeps reactive zero-progress pagination disarmed after loading settles", async () => {
