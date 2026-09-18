@@ -1532,6 +1532,90 @@ describe("PromptHistoryPanel", () => {
     expect(loadMore).toHaveBeenCalledTimes(2);
   });
 
+  it("re-arms the sentinel after each settled page", async () => {
+    // The panel forces a fresh observation after every settle (`unobserve`
+    // before the load, `observe` after), because IntersectionObserver only
+    // notifies on an intersection-state change: a bottom-pinned panel whose
+    // sentinel never leaves the band would otherwise stop after one page.
+    // MockIntersectionObserver cannot see that, so this case installs a
+    // spec-faithful observer and keeps the frame-driven recheck off the clock.
+    class SpecIntersectionObserver {
+      private readonly callback: IntersectionObserverCallback;
+      private readonly targets = new Set<Element>();
+      constructor(callback: IntersectionObserverCallback) {
+        this.callback = callback;
+      }
+      observe(target: Element): void {
+        if (this.targets.has(target)) return;
+        this.targets.add(target);
+        queueMicrotask(() => {
+          if (!this.targets.has(target)) return;
+          this.callback(
+            [{ isIntersecting: true, target } as unknown as IntersectionObserverEntry],
+            this as unknown as IntersectionObserver,
+          );
+        });
+      }
+      unobserve(target: Element): void {
+        this.targets.delete(target);
+      }
+      disconnect(): void {
+        this.targets.clear();
+      }
+      takeRecords(): IntersectionObserverEntry[] {
+        return [];
+      }
+    }
+
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal("IntersectionObserver", SpecIntersectionObserver);
+      const loadMore = vi.fn().mockResolvedValueOnce(1).mockResolvedValue(0);
+      renderPanel(
+        makeMessages(
+          [message({ id: "m", content: "page", promptIndex: 5 })],
+          { hasMore: true, loadMore },
+        ),
+        makeTurns([]),
+      );
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+      // The initial observation, then the forced re-arm of the settled page.
+      expect(loadMore).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not retry disarmed pagination from a role-button mention chip", async () => {
+    const row = message({
+      id: "m",
+      content: "@rolebutton",
+      promptIndex: 2,
+      createdAt: "2026-01-01T00:00:00Z",
+    });
+    const loadMore = vi.fn().mockResolvedValueOnce(0).mockResolvedValueOnce(1);
+    renderPanel(makeMessages([row], { hasMore: true, loadMore }), makeTurns([]));
+    const observer = MockIntersectionObserver.instances.at(-1);
+    if (!observer) throw new Error("expected pagination observer");
+    await act(async () => {
+      observer.fire();
+      await Promise.resolve();
+    });
+    expect(loadMore).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      screen.getByTestId("ph-test-mention-role").dispatchEvent(
+        new Event("touchstart", { bubbles: true }),
+      );
+    });
+
+    expect(loadMore).toHaveBeenCalledTimes(1);
+  });
+
   it("resets a zero-progress disarm when the active session changes", async () => {
     const loadA = vi.fn().mockResolvedValue(0);
     const loadB = vi.fn().mockResolvedValue(1);

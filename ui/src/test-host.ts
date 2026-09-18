@@ -235,7 +235,7 @@ export function createTestHost(
         React.createElement(
           "span",
           { "data-ph-mention": "true" },
-          text === "@interactive" && interactive
+          interactive && text === "@interactive"
             ? React.createElement(
                 "button",
                 {
@@ -252,7 +252,24 @@ export function createTestHost(
                 },
                 text,
               )
-            : text,
+            : // The pinned host renders a mention chip as `<button>` only on
+              // touch devices; a fine-pointer host (including a touchscreen
+              // laptop) renders `<span role="button">`, which the panel's
+              // nested-interactive guard must also recognise.
+              interactive && text === "@rolebutton"
+              ? React.createElement(
+                  "span",
+                  {
+                    role: "button",
+                    tabIndex: 0,
+                    "data-testid": "ph-test-mention-role",
+                    onClick: () => {
+                      store.mentionActivations += 1;
+                    },
+                  },
+                  text,
+                )
+              : text,
         ),
     },
     utils: {
