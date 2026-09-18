@@ -117,7 +117,7 @@ function PromptHistoryRow({
   const rowLabel =
     row.promptNumber == null
       ? t("promptHistoryPromptLabelGeneric")
-      : t("promptHistoryPromptLabel", { number: row.promptNumber });
+      : t("promptHistoryPromptLabel", { values: { number: row.promptNumber } });
   const compactExpand = isFinePointer && !isMobile;
   const updateOverflow = useCallback(() => {
     const text = textRef.current;
@@ -316,9 +316,13 @@ function usePanelOlderPromptSentinel(opts: {
   loadMoreRef.current = opts.loadMore;
   const attachedScrollerRef = useRef<HTMLDivElement | null>(null);
   const lifecycleRef = useRef(opts.lifecycleKey);
+  const loadingRef = useRef(opts.messagesLoading);
   const generationRef = useRef(0);
-  if (lifecycleRef.current !== opts.lifecycleKey) {
-    lifecycleRef.current = opts.lifecycleKey;
+  const lifecycleChanged = lifecycleRef.current !== opts.lifecycleKey;
+  const rebindStarted = !loadingRef.current && opts.messagesLoading;
+  lifecycleRef.current = opts.lifecycleKey;
+  loadingRef.current = opts.messagesLoading;
+  if (lifecycleChanged || rebindStarted) {
     generationRef.current += 1;
     intersectingRef.current = false;
     disarmedRef.current = false;
@@ -429,7 +433,7 @@ function usePanelOlderPromptSentinel(opts: {
       observer.disconnect();
       if (observerRef.current === observer) observerRef.current = null;
     };
-  }, [sentinelEl, opts.scrollRef, opts.lifecycleKey, fireLoad]);
+  }, [sentinelEl, opts.scrollRef, opts.lifecycleKey, opts.messagesLoading, fireLoad]);
 
   useEffect(() => {
     if (

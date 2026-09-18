@@ -338,6 +338,7 @@ describe("PromptHistoryPanel", () => {
     // Ordinal and agent-sent flag.
     expect(screen.getByText("#2")).toBeTruthy();
     expect(screen.getByText("#1")).toBeTruthy();
+    expect(screen.getByTestId("ph-plugin-navigate-0").getAttribute("aria-label")).toBe("Prompt 2");
     // Send time and duration. Both rows share the test host's fixed relative
     // time, so assert on the count rather than a single match.
     expect(screen.getAllByText("5 minutes ago").length).toBe(2);
@@ -568,6 +569,49 @@ describe("PromptHistoryPanel", () => {
       await Promise.resolve();
     });
     expect(loadB).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores a stale pagination result after a same-session host rebind", async () => {
+    let resolveStale: ((count: number) => void) | undefined;
+    const staleLoad = vi.fn(
+      () =>
+        new Promise<number>((resolve) => {
+          resolveStale = resolve;
+        }),
+    );
+    const currentLoad = vi.fn().mockResolvedValue(1);
+    const row = message({ id: "m", content: "same session", promptIndex: 2 });
+    const { store } = renderPanel(
+      makeMessages([row], { hasMore: true, loadMore: staleLoad }),
+      makeTurns([]),
+    );
+    const staleObserver = MockIntersectionObserver.instances.at(-1);
+    if (!staleObserver) throw new Error("expected stale observer");
+    await act(async () => {
+      staleObserver.fire();
+      await Promise.resolve();
+    });
+
+    act(() => {
+      store.setMessages(
+        makeMessages([row], { hasMore: true, loading: true, loadMore: currentLoad }),
+      );
+    });
+    act(() => {
+      store.setMessages(makeMessages([row], { hasMore: true, loadMore: currentLoad }));
+    });
+    const currentObserver = MockIntersectionObserver.instances.at(-1);
+    if (!currentObserver || currentObserver === staleObserver) {
+      throw new Error("expected rebound observer");
+    }
+
+    await act(async () => {
+      resolveStale?.(0);
+      await Promise.resolve();
+      currentObserver.fire();
+      await Promise.resolve();
+    });
+    expect(currentLoad).toHaveBeenCalledTimes(1);
   });
 
   it("measures row scrollability without the inline loading indicator", () => {

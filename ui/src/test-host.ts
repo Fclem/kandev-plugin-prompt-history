@@ -118,10 +118,12 @@ export function createTestHost(
     const catalog: Record<string, string> =
       (CATALOGS as Record<string, Record<string, string>>)[store.locale] ?? (CATALOGS.en as Record<string, string>);
     let value = catalog[key] ?? key;
-    if (options) {
-      for (const [placeholder, replacement] of Object.entries(options)) {
-        value = value.split(`{{${placeholder}}}`).join(String(replacement));
-      }
+    const replacements =
+      options?.values && typeof options.values === "object" && !Array.isArray(options.values)
+        ? (options.values as Record<string, unknown>)
+        : {};
+    for (const [placeholder, replacement] of Object.entries(replacements)) {
+      value = value.split(`{{${placeholder}}}`).join(String(replacement));
     }
     return value;
   };
