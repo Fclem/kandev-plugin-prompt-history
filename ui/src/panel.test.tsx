@@ -290,6 +290,20 @@ describe("PromptHistoryPanel", () => {
     expect(screen.getByText("No prompts yet.")).toBeTruthy();
   });
 
+  it("hides rows and controls for passthrough sessions", () => {
+    const single = message({ id: "m", content: "hidden prompt", createdAt: "2026-01-01T00:00:00Z" });
+    renderPanel(
+      makeMessages([single], { loading: true, hasMore: true }),
+      makeTurns([]),
+      { sessionKind: "passthrough" },
+    );
+
+    expect(screen.getByText("No prompts yet.")).toBeTruthy();
+    expect(document.querySelector('[data-message-id="m"]')).toBeNull();
+    expect(screen.queryByTestId("ph-plugin-sentinel")).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
   it("renders the retry surface on error and re-runs recovery on retry", () => {
     const retry = vi.fn();
     renderPanel(
@@ -355,6 +369,46 @@ describe("PromptHistoryPanel", () => {
     expect(screen.getByText("1s")).toBeTruthy();
   });
 
+  it("adds a duration when a live turn completes", () => {
+    const single = message({
+      id: "m",
+      content: "live prompt",
+      createdAt: "2026-01-01T00:00:00Z",
+      turnId: "turn",
+    });
+    const { store } = renderPanel(
+      makeMessages([single]),
+      makeTurns([
+        {
+          id: "turn",
+          taskId: "t",
+          sessionId: "s",
+          startedAt: "2026-01-01T00:00:00Z",
+          completedAt: null,
+          updatedAt: "2026-01-01T00:00:00Z",
+        },
+      ]),
+    );
+    expect(screen.queryByText("3s")).toBeNull();
+
+    act(() => {
+      store.setTurns(
+        makeTurns([
+          {
+            id: "turn",
+            taskId: "t",
+            sessionId: "s",
+            startedAt: "2026-01-01T00:00:00Z",
+            completedAt: "2026-01-01T00:00:03Z",
+            updatedAt: "2026-01-01T00:00:03Z",
+          },
+        ]),
+      );
+    });
+
+    expect(screen.getByText("3s")).toBeTruthy();
+  });
+
   it("navigates from a native button with prompt content as its description", () => {
     const single = message({ id: "m", content: "open me", createdAt: "2026-01-01T00:00:00Z" });
     const { store } = renderPanel(makeMessages([single], { hasMore: false }), makeTurns([]));
@@ -367,6 +421,22 @@ describe("PromptHistoryPanel", () => {
     });
 
     expect(store.openedMessageIds).toEqual(["m"]);
+  });
+
+  it("keeps the current rows when navigation reports an unavailable target", () => {
+    const single = message({ id: "m", content: "stay here", createdAt: "2026-01-01T00:00:00Z" });
+    const { store } = renderPanel(makeMessages([single]), makeTurns([]));
+    store.openMessageResult = { status: "unavailable" };
+
+    act(() => {
+      screen.getByRole("button", { name: "Prompt" }).dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+
+    expect(store.openedMessageIds).toEqual(["m"]);
+    expect(document.querySelector('[data-message-id="m"]')?.textContent).toContain("stay here");
+    expect(screen.queryByText("Error")).toBeNull();
   });
 
   it("only offers expansion for overflowing text and collapses it again", () => {
