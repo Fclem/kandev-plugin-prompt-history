@@ -291,6 +291,31 @@ describe("PromptHistoryPanel", () => {
     expect(screen.getByText("Loading...")).toBeTruthy();
   });
 
+  it("attaches scroll measurement when loading transitions to rows", () => {
+    const row = message({ id: "m", content: "page", promptIndex: 2 });
+    const { store } = renderPanel(
+      makeMessages([], { loading: true }),
+      makeTurns([]),
+    );
+
+    act(() => {
+      store.setMessages(
+        makeMessages([row], { hasMore: true, loadingMore: true }),
+      );
+    });
+    const scroller = screen.getByTestId("ph-plugin-scroll");
+    const rows = scroller.querySelector(".ph-plugin-rows");
+    if (!(rows instanceof HTMLDivElement)) throw new Error("expected rows wrapper");
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 100 });
+    Object.defineProperty(rows, "scrollHeight", { configurable: true, value: 200 });
+
+    act(() => {
+      for (const observer of resizeObservers) observer.flush();
+    });
+
+    expect(screen.getByTestId("ph-plugin-loading-older-floating")).toBeTruthy();
+  });
+
   it("renders the empty state when there are no prompts", () => {
     renderPanel(makeMessages([]), makeTurns([]));
     expect(screen.getByText("No prompts yet.")).toBeTruthy();

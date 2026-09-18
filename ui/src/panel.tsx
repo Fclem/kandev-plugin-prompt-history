@@ -251,7 +251,8 @@ function overflowsPanel(contentHeight: number, rootClientHeight: number, vertica
 /** True when the prompt rows overflow the scroller, i.e. the panel actually
  * scrolls. Measured from a dedicated content wrapper (rows + sentinel) against
  * the inner scroller's content box so the loading indicator's own presence
- * never affects the answer. */
+ * never affects the answer. Reconnects after every commit so refs that were
+ * null in an empty/loading branch attach when the rows branch mounts. */
 function usePanelContentScrollable(
   scrollRef: React.RefObject<HTMLDivElement | null>,
   contentRef: React.RefObject<HTMLDivElement | null>,
@@ -280,7 +281,7 @@ function usePanelContentScrollable(
     observer.observe(scroller);
     observer.observe(content);
     return () => observer.disconnect();
-  }, [scrollRef, contentRef, measure, onGeometryChange]);
+  });
   return isScrollable;
 }
 
