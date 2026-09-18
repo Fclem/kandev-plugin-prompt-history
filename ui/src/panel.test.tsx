@@ -428,7 +428,7 @@ describe("PromptHistoryPanel", () => {
     expect(store.openedMessageIds).toEqual(["m"]);
   });
 
-  it("lets interactive prompt mentions handle pointer activation without navigating", () => {
+  it("lets interactive prompt mentions handle pointer and keyboard activation", () => {
     const single = message({
       id: "m",
       content: "@interactive",
@@ -443,6 +443,34 @@ describe("PromptHistoryPanel", () => {
     });
 
     expect(store.mentionActivations).toBe(1);
+    expect(store.openedMessageIds).toEqual([]);
+
+    const mention = screen.getByTestId("ph-test-mention");
+    act(() => {
+      mention.focus();
+      mention.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+    expect(document.activeElement).toBe(mention);
+    expect(store.mentionActivations).toBe(2);
+    expect(store.openedMessageIds).toEqual([]);
+
+    revealOverflowToggle("@interactive");
+    act(() => {
+      screen.getByTestId("ph-plugin-expand-0").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+    const expandedMention = screen
+      .getByTestId("ph-plugin-expanded-box-0")
+      .querySelector('[data-testid="ph-test-mention"]');
+    if (!(expandedMention instanceof HTMLButtonElement)) {
+      throw new Error("expected interactive expanded mention");
+    }
+    act(() => {
+      expandedMention.focus();
+      expandedMention.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
+    });
+    expect(store.mentionActivations).toBe(3);
     expect(store.openedMessageIds).toEqual([]);
 
     act(() => {

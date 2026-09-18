@@ -145,17 +145,28 @@ export function createTestHost(
       useTranslation: () => ({ locale: store.locale, t }),
     },
     ui: {
-      PromptMentionText: ({ text }: { text: string; interactive?: boolean }) =>
+      PromptMentionText: ({
+        text,
+        interactive,
+      }: {
+        text: string;
+        interactive?: boolean;
+      }) =>
         React.createElement(
           "span",
           { "data-ph-mention": "true" },
-          text === "@interactive"
+          text === "@interactive" && interactive
             ? React.createElement(
                 "button",
                 {
                   type: "button",
                   "data-testid": "ph-test-mention",
                   onClick: () => {
+                    store.mentionActivations += 1;
+                  },
+                  onKeyDown: (event: React.KeyboardEvent) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
                     store.mentionActivations += 1;
                   },
                 },

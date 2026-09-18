@@ -93,7 +93,7 @@ type RowProps = {
   onNavigate: (messageId: string) => void;
   t: (key: string, options?: Record<string, unknown>) => string;
   formatRelativeTime: (value: string | number | Date) => string;
-  PromptMentionText: ComponentType<{ text: string }>;
+  PromptMentionText: ComponentType<{ text: string; interactive?: boolean }>;
 };
 
 function isNestedInteractiveTarget(target: EventTarget | null, currentTarget: Element): boolean {
@@ -165,7 +165,7 @@ function PromptHistoryRow({
           )}
           {row.isAgentPrompt && <PanelIcon className="ph-plugin-agent-icon" name="robot" />}
           <span ref={textRef} className={expanded ? "ph-plugin-hidden" : "ph-plugin-row-text"}>
-            <PromptMentionText text={row.content} />
+            <PromptMentionText text={row.content} interactive />
           </span>
           {expanded && (
             <div
@@ -173,7 +173,7 @@ function PromptHistoryRow({
               data-testid={`ph-plugin-expanded-box-${index}`}
               style={{ maxHeight }}
             >
-              <PromptMentionText text={row.content} />
+              <PromptMentionText text={row.content} interactive />
             </div>
           )}
           {showToggle && (
@@ -812,7 +812,9 @@ export function PromptHistoryPanel(props: PluginTaskPanelProps) {
               onNavigate={onNavigate}
               t={t}
               formatRelativeTime={h.utils.formatRelativeTime}
-              PromptMentionText={h.ui.PromptMentionText as ComponentType<{ text: string }>}
+              PromptMentionText={
+                h.ui.PromptMentionText as ComponentType<{ text: string; interactive?: boolean }>
+              }
             />
           ))}
           {shouldAutoLoad && (
