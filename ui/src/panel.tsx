@@ -9,7 +9,7 @@
  * `host.utils`, `host.i18n`), without importing private stores or duplicating
  * host-owned transport.
  */
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import type { PluginTaskPanelProps } from "./host";
 import {
   derivePromptHistoryRows,
@@ -30,6 +30,8 @@ const SCROLL_TEST_ID = "ph-plugin-scroll";
  * right after a positive settle) renders a continuous indicator instead of a
  * per-page flash. */
 const LOADING_GRACE_MS = 400;
+
+let nextDescriptionId = 0;
 
 type PanelIconName = "robot" | "clock" | "hourglass" | "chevron-up" | "chevron-down";
 
@@ -108,7 +110,12 @@ function PromptHistoryRow({
 }: RowProps) {
   const isFavorite = host().conversation.useMessageFavorite(sessionId, row.messageId);
   const textRef = useRef<HTMLSpanElement>(null);
-  const descriptionId = useId();
+  const descriptionIdRef = useRef<string | null>(null);
+  if (descriptionIdRef.current === null) {
+    nextDescriptionId += 1;
+    descriptionIdRef.current = `ph-plugin-prompt-description-${nextDescriptionId}`;
+  }
+  const descriptionId = descriptionIdRef.current;
   const [overflow, setOverflow] = useState(false);
   const rowLabel =
     row.promptNumber == null

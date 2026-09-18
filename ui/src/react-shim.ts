@@ -49,7 +49,6 @@ export const useMemo = (...args: unknown[]) => react("useMemo")(...args);
 export const useCallback = (...args: unknown[]) => react("useCallback")(...args);
 export const useRef = (...args: unknown[]) => react("useRef")(...args);
 export const useSyncExternalStore = (...args: unknown[]) => react("useSyncExternalStore")(...args);
-export const useId = (...args: unknown[]) => react("useId")(...args);
 
 export default new Proxy(
   {},
