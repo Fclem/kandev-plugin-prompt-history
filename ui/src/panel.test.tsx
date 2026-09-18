@@ -304,7 +304,9 @@ function revealOverflowToggle(textContent: string): void {
 describe("PromptHistoryPanel", () => {
   it("renders the initial loading state", () => {
     renderPanel(makeMessages([], { loading: true }), makeTurns([]));
-    expect(screen.getByText("Loading...")).toBeTruthy();
+    const loading = screen.getByText("Loading...");
+    expect(loading.getAttribute("role")).toBe("status");
+    expect(loading.getAttribute("aria-live")).toBe("polite");
   });
 
   it("attaches scroll measurement when loading transitions to rows", () => {
@@ -357,6 +359,112 @@ describe("PromptHistoryPanel", () => {
     expect(screen.getByTestId("ph-plugin-expanded-box-0").style.maxHeight).toBe("200px");
   });
 
+  it("renders no duration before the turns hydrate", () => {
+    const single = message({
+      id: "m",
+      content: "prompt",
+      createdAt: "2026-01-01T00:00:00Z",
+      turnId: "turn",
+    });
+    renderPanel(
+      makeMessages([single]),
+      makeTurns(
+        [
+          {
+            id: "turn",
+            taskId: "t",
+            sessionId: "s",
+            startedAt: "2026-01-01T00:00:00Z",
+            completedAt: "2026-01-01T00:00:03Z",
+            updatedAt: "2026-01-01T00:00:03Z",
+          },
+        ],
+        { hydrated: false },
+      ),
+    );
+
+    expect(screen.queryByTestId("ph-plugin-duration-0")).toBeNull();
+  });
+
+  it("renders no sentinel on an exhausted page that lacks the first prompt", () => {
+    renderPanel(
+      makeMessages(
+        [
+          message({
+            id: "m",
+            content: "prompt",
+            createdAt: "2026-01-01T00:00:05Z",
+            promptIndex: 5,
+          }),
+        ],
+        { hasMore: false },
+      ),
+      makeTurns([]),
+    );
+
+    expect(screen.queryByTestId("ph-plugin-sentinel")).toBeNull();
+  });
+
+  it("stops paginating once the first prompt is rendered", async () => {
+    const loadMore = vi.fn().mockResolvedValue(1);
+    renderPanel(
+      makeMessages(
+        [
+          message({
+            id: "m",
+            content: "prompt",
+            createdAt: "2026-01-01T00:00:05Z",
+            promptIndex: 1,
+          }),
+        ],
+        { hasMore: true, loadMore },
+      ),
+      makeTurns([]),
+    );
+    expect(screen.queryByTestId("ph-plugin-sentinel")).toBeNull();
+
+    const scroller = screen.getByTestId("ph-plugin-scroll");
+    await act(async () => {
+      scroller.dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(loadMore).not.toHaveBeenCalled();
+  });
+
+  it("renders the panel's copy from the active locale's catalog", () => {
+    const { store, props, rerender } = renderPanel(
+      makeMessages([], { loading: true }),
+      makeTurns([]),
+    );
+    act(() => {
+      store.locale = "pt-pt";
+      rerender(<PromptHistoryPanel {...props} />);
+    });
+    expect(screen.getByText(CATALOGS["pt-pt"].loading)).toBeTruthy();
+
+    act(() => {
+      store.setMessages(
+        makeMessages([], {
+          error: { code: "upstream_failure", message: "x", retryable: true },
+        }),
+      );
+    });
+    expect(screen.getByText(CATALOGS["pt-pt"].error)).toBeTruthy();
+    expect(screen.getByTestId("ph-plugin-retry").textContent).toBe(CATALOGS["pt-pt"].retry);
+
+    act(() => {
+      store.setMessages(
+        makeMessages([message({ id: "m", content: "prompt", promptIndex: 2 })], {
+          hasMore: true,
+        }),
+      );
+    });
+    expect(screen.getByTestId("ph-plugin-scroll").getAttribute("aria-label")).toBe(
+      CATALOGS["pt-pt"].panelTitle,
+    );
+  });
+
   it("renders the empty state when there are no prompts", () => {
     renderPanel(makeMessages([]), makeTurns([]));
     const empty = screen.getByText("No prompts yet.");
@@ -372,7 +480,9 @@ describe("PromptHistoryPanel", () => {
       { sessionKind: "passthrough" },
     );
 
-    expect(screen.getByText("No prompts yet.")).toBeTruthy();
+    const passthrough = screen.getByText("No prompts yet.");
+    expect(passthrough.getAttribute("role")).toBe("status");
+    expect(passthrough.getAttribute("aria-live")).toBe("polite");
     expect(document.querySelector('[data-message-id="m"]')).toBeNull();
     expect(screen.queryByTestId("ph-plugin-sentinel")).toBeNull();
     expect(screen.queryByRole("button")).toBeNull();
@@ -384,7 +494,9 @@ describe("PromptHistoryPanel", () => {
       makeMessages([], { error: { code: "upstream_failure", message: "x", retryable: true }, retry }),
       makeTurns([]),
     );
-    expect(screen.getByText("Error")).toBeTruthy();
+    const error = screen.getByText("Error");
+    expect(error.getAttribute("role")).toBe("status");
+    expect(error.getAttribute("aria-live")).toBe("polite");
     const retryButton = screen.getByTestId("ph-plugin-retry");
     act(() => {
       retryButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
