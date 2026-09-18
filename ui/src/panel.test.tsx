@@ -526,7 +526,12 @@ describe("PromptHistoryPanel", () => {
   });
 
   it("keeps expansion attached to its message across a live prepend", () => {
-    const older = message({ id: "older", content: "older prompt", promptIndex: 2 });
+    const older = message({
+      id: "older",
+      content: "older prompt",
+      createdAt: "2026-01-01T00:00:00Z",
+      promptIndex: 2,
+    });
     const { store } = renderPanel(makeMessages([older], { hasMore: false }), makeTurns([]));
     revealOverflowToggle("older prompt");
     act(() => {
@@ -538,9 +543,18 @@ describe("PromptHistoryPanel", () => {
 
     act(() => {
       store.setMessages(
-        makeMessages([message({ id: "newer", content: "newer prompt", promptIndex: 3 }), older], {
-          hasMore: false,
-        }),
+        makeMessages(
+          [
+            message({
+              id: "newer",
+              content: "newer prompt",
+              createdAt: "2026-01-01T00:00:05Z",
+              promptIndex: 3,
+            }),
+            older,
+          ],
+          { hasMore: false },
+        ),
       );
     });
 
@@ -559,10 +573,16 @@ describe("PromptHistoryPanel", () => {
   });
 
   it("does not list agent-authored messages", () => {
-    const userRow = message({ id: "u", content: "user prompt", promptIndex: 2 });
+    const userRow = message({
+      id: "u",
+      content: "user prompt",
+      createdAt: "2026-01-01T00:00:02Z",
+      promptIndex: 2,
+    });
     const agentRow = message({
       id: "a",
       content: "agent prompt",
+      createdAt: "2026-01-01T00:00:00Z",
       authorType: "agent",
       promptIndex: 1,
     });
@@ -706,16 +726,124 @@ describe("PromptHistoryPanel", () => {
     revealOverflowToggle("a long prompt");
     const expand = screen.getByTestId("ph-plugin-expand-0");
     expect(expand.getAttribute("aria-expanded")).toBe("false");
+    expect(expand.getAttribute("aria-label")).toBe("Expand prompt");
     act(() => {
       expand.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect(expand.getAttribute("aria-expanded")).toBe("true");
+    expect(expand.getAttribute("aria-label")).toBe("Collapse prompt");
     expect(screen.getByTestId("ph-plugin-expanded-box-0").style.maxHeight).toBe("200px");
+
+    // While expanded the truncated span is display:none, so a real browser
+    // measures it as 0 wide; the control must survive that or the row can
+    // never be collapsed again.
+    const text = document.querySelector("[data-ph-mention]")?.parentElement;
+    if (!(text instanceof HTMLSpanElement)) throw new Error("expected prompt mention wrapper");
+    Object.defineProperty(text, "scrollWidth", { configurable: true, value: 0 });
+    Object.defineProperty(text, "clientWidth", { configurable: true, value: 0 });
     act(() => {
-      expand.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      for (const observer of resizeObservers) observer.flush();
     });
-    expect(expand.getAttribute("aria-expanded")).toBe("false");
+
+    const stillExpandable = screen.getByTestId("ph-plugin-expand-0");
+    expect(stillExpandable.getAttribute("aria-expanded")).toBe("true");
+    act(() => {
+      stillExpandable.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
     expect(screen.queryByTestId("ph-plugin-expanded-box-0")).toBeNull();
+  });
+
+  it("does not auto-load older prompts while the host is loading", async () => {
+    const loadMore = vi.fn().mockResolvedValue(1);
+    renderPanel(
+      makeMessages([message({ id: "m", content: "page", promptIndex: 2 })], {
+        hasMore: true,
+        loading: true,
+        loadMore,
+      }),
+      makeTurns([]),
+    );
+    const observer = MockIntersectionObserver.instances.at(-1);
+    if (!observer) throw new Error("expected pagination observer");
+
+    await act(async () => {
+      observer.fire();
+      await Promise.resolve();
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+      await Promise.resolve();
+    });
+
+    expect(loadMore).not.toHaveBeenCalled();
+  });
+
+  it("does not retry disarmed pagination from nested row controls", async () => {
+    const row = message({ id: "m", content: "page", promptIndex: 2 });
+    const loadMore = vi.fn().mockResolvedValueOnce(0).mockResolvedValueOnce(1);
+    renderPanel(makeMessages([row], { hasMore: true, loadMore }), makeTurns([]));
+    const observer = MockIntersectionObserver.instances.at(-1);
+    if (!observer) throw new Error("expected pagination observer");
+    await act(async () => {
+      observer.fire();
+      await Promise.resolve();
+    });
+    expect(loadMore).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      screen.getByTestId("ph-plugin-navigate-0").dispatchEvent(
+        new KeyboardEvent("keydown", { key: "PageDown", bubbles: true }),
+      );
+    });
+
+    expect(loadMore).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders the newest prompt first regardless of the seeded order", () => {
+    const newer = message({
+      id: "newer",
+      content: "second prompt",
+      createdAt: "2026-01-01T00:00:05Z",
+      promptIndex: 2,
+    });
+    const older = message({
+      id: "older",
+      content: "first prompt",
+      createdAt: "2026-01-01T00:00:00Z",
+      promptIndex: 1,
+    });
+    // Seeded oldest-first: the query's `desc` sort, not the array order,
+    // decides the rendering order.
+    renderPanel(makeMessages([older, newer], { hasMore: false }), makeTurns([]));
+
+    const rendered = [...document.querySelectorAll("[data-message-id]")].map((bubble) =>
+      bubble.getAttribute("data-message-id"),
+    );
+    expect(rendered).toEqual(["newer", "older"]);
+  });
+
+  it("reports the prompt's send time rather than its update time", () => {
+    const single = message({
+      id: "m",
+      content: "edited prompt",
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-02-02T00:00:00Z",
+    });
+    renderPanel(makeMessages([single], { hasMore: false }), makeTurns([]));
+
+    expect(document.querySelector("time")?.getAttribute("dateTime")).toBe(
+      "2026-01-01T00:00:00Z",
+    );
+  });
+
+  it("names the focusable scroll region", () => {
+    renderPanel(
+      makeMessages([message({ id: "m", content: "page", promptIndex: 2 })], { hasMore: true }),
+      makeTurns([]),
+    );
+
+    const scroller = screen.getByTestId("ph-plugin-scroll");
+    expect(scroller.getAttribute("aria-label")).toBe("Prompt History");
+    expect(scroller.tabIndex).toBe(0);
   });
 
   it("highlights favorited prompt bubbles via the host favorite state", () => {

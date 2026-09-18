@@ -15,12 +15,46 @@ import { setHost } from "./host";
 import type {
   PluginHost,
   PluginConversationMessage,
+  PluginConversationSort,
   PluginConversationTurn,
   PluginSessionMessagesQuery,
   PluginSessionMessagesState,
   PluginSessionTurnsState,
 } from "./host";
 import { CATALOGS } from "./strings";
+
+/** Mirrors the pinned facade's `compareConversationMessages`: millisecond
+ * comparison, then the nanosecond fraction, then an id tie-break, negated for
+ * `desc`. */
+function compareMessages(
+  left: PluginConversationMessage,
+  right: PluginConversationMessage,
+  sort: PluginConversationSort,
+): number {
+  const ordered =
+    compareTimestamps(left.createdAt, right.createdAt) || compareStrings(left.id, right.id);
+  return sort === "asc" ? ordered : -ordered;
+}
+
+function compareStrings(left: string, right: string): number {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
+function compareTimestamps(left: string, right: string): number {
+  const leftMs = Date.parse(left);
+  const rightMs = Date.parse(right);
+  if (Number.isFinite(leftMs) && Number.isFinite(rightMs)) {
+    if (leftMs !== rightMs) return leftMs < rightMs ? -1 : 1;
+    return compareStrings(fractionNanoseconds(left), fractionNanoseconds(right));
+  }
+  return compareStrings(left, right);
+}
+
+function fractionNanoseconds(value: string): string {
+  return (value.match(/\.(\d+)(?:Z|[+-]\d{2}:\d{2})$/)?.[1] ?? "").padEnd(9, "0").slice(0, 9);
+}
 
 export class TestHostStore {
   messagesState: PluginSessionMessagesState;
@@ -32,7 +66,7 @@ export class TestHostStore {
   locale = "en";
 
   private listeners = new Set<() => void>();
-  private authorFiltered = new Map<string, { source: PluginSessionMessagesState; value: PluginSessionMessagesState }>();
+  private queryCache = new Map<string, { source: PluginSessionMessagesState; value: PluginSessionMessagesState }>();
 
   constructor(messagesState: PluginSessionMessagesState, turnsState: PluginSessionTurnsState) {
     this.messagesState = messagesState;
@@ -40,22 +74,28 @@ export class TestHostStore {
   }
 
   /** The messages snapshot as the pinned facade would return it for `query`:
-   * `authorTypes` is the filter the panel relies on to exclude agent-authored
-   * messages, so the mock honors it rather than handing back every message.
-   * Results are cached per filter and the source snapshot, keeping the
-   * `useSyncExternalStore` snapshot referentially stable. */
+   * `authorTypes` and `sort` are the query's observable shaping (the panel
+   * relies on `authorTypes` to exclude agent-authored messages and on `desc`
+   * for the newest-first order `derive` assumes), so the mock applies both
+   * rather than handing back every message in store order. Results are cached
+   * per query and source snapshot, keeping the `useSyncExternalStore` snapshot
+   * referentially stable. */
   messagesForQuery(query: PluginSessionMessagesQuery): PluginSessionMessagesState {
-    const authorTypes = query.authorTypes;
-    if (!authorTypes || authorTypes.length === 0) return this.messagesState;
-    const key = [...authorTypes].join("|");
-    const cached = this.authorFiltered.get(key);
+    const authorTypes = query.authorTypes ?? [];
+    const sort = query.sort ?? "desc";
+    const key = `${sort}|${[...authorTypes].join("|")}`;
+    const cached = this.queryCache.get(key);
     if (cached && cached.source === this.messagesState) return cached.value;
     const source = this.messagesState;
     const value: PluginSessionMessagesState = {
       ...source,
-      messages: source.messages.filter((message) => authorTypes.includes(message.authorType)),
+      messages: source.messages
+        .filter(
+          (message) => authorTypes.length === 0 || authorTypes.includes(message.authorType),
+        )
+        .sort((left, right) => compareMessages(left, right, sort)),
     };
-    this.authorFiltered.set(key, { source, value });
+    this.queryCache.set(key, { source, value });
     return value;
   }
 
