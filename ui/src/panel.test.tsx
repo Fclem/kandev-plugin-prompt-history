@@ -912,6 +912,45 @@ describe("PromptHistoryPanel", () => {
     expect(loadMore).toHaveBeenCalledTimes(3);
   });
 
+  it("issues one older-page load per touch tap on the scroller", async () => {
+    const loadMore = vi
+      .fn()
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(1);
+    renderPanel(
+      makeMessages(
+        [message({ id: "m", content: "page", promptIndex: 2 })],
+        { hasMore: true, loadMore },
+      ),
+      makeTurns([]),
+    );
+    const observer = MockIntersectionObserver.instances.at(-1);
+    if (!observer) throw new Error("expected pagination observer");
+    await act(async () => {
+      observer.fire();
+      await Promise.resolve();
+    });
+    expect(loadMore).toHaveBeenCalledTimes(1);
+
+    // A touch tap reaches the scroller as `pointerdown` with `pointerType`
+    // "touch" followed by `touchstart`; the pair is one retry gesture, so a
+    // zero-progress page must not be retried twice for a single tap.
+    const scroller = screen.getByTestId("ph-plugin-scroll");
+    await act(async () => {
+      const pointerDown = new MouseEvent("pointerdown", { bubbles: true });
+      Object.defineProperty(pointerDown, "pointerType", { value: "touch" });
+      scroller.dispatchEvent(pointerDown);
+      await Promise.resolve();
+    });
+    await act(async () => {
+      scroller.dispatchEvent(new Event("touchstart", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(loadMore).toHaveBeenCalledTimes(2);
+  });
+
   it("keeps reactive zero-progress pagination disarmed after loading settles", async () => {
     const row = message({ id: "m", content: "page", promptIndex: 2 });
     let store: TestHostStore | undefined;
@@ -1223,7 +1262,7 @@ describe("PromptHistoryPanel", () => {
   it("renders the empty state when terminal removal has no committed rows", () => {
     renderPanel(makeMessages([], { removed: true }), makeTurns([]));
     expect(screen.getByText("No prompts yet.")).toBeTruthy();
-    expect(screen.queryByTestId("ph-plugin-scroller")).toBeNull();
+    expect(screen.queryByTestId("ph-plugin-scroll")).toBeNull();
   });
 
   it("renders loading for the pinned host's unhydrated initial snapshot", () => {

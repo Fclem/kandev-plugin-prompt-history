@@ -730,6 +730,12 @@ export function PromptHistoryPanel(props: PluginTaskPanelProps) {
   );
   const onScrollerPointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
+      // A touch tap reaches the scroller as `pointerdown` (pointerType
+      // "touch") and then `touchstart`; the touch handler below already owns
+      // that gesture, so handling it here would retry one tap twice once the
+      // first page settles. Mouse and pen clicks have no touch fallback and
+      // stay handled here.
+      if (event.pointerType === "touch") return;
       if (event.target === event.currentTarget) onUserGesture();
     },
     [onUserGesture],
