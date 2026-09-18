@@ -26,6 +26,7 @@ export class TestHostStore {
   turnsState: PluginSessionTurnsState;
   favorites = new Set<string>();
   openMessageResult: { status: "accepted" | "unavailable" } = { status: "accepted" };
+  openedMessageIds: string[] = [];
   breakpoint: { isMobile: boolean; isFinePointer: boolean } = {
     isMobile: false,
     isFinePointer: true,

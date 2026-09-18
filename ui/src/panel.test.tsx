@@ -163,27 +163,38 @@ class MockResizeObserver {
 class MockIntersectionObserver {
   readonly callback: IntersectionObserverCallback;
   readonly options: IntersectionObserverInit;
-  readonly root: Element | null = null;
+  readonly root: Element | Document | null;
   readonly rootMargin: string;
   readonly thresholds: number[];
+  readonly targets = new Set<Element>();
+  observeCalls = 0;
   static instances: MockIntersectionObserver[] = [];
   constructor(callback: IntersectionObserverCallback, options: IntersectionObserverInit = {}) {
     this.callback = callback;
     this.options = options;
+    this.root = options.root ?? null;
     this.rootMargin = options.rootMargin ?? "0px";
     this.thresholds = [];
     MockIntersectionObserver.instances.push(this);
   }
-  observe(): void {}
-  unobserve(): void {}
-  disconnect(): void {}
+  observe(target: Element): void {
+    this.targets.add(target);
+    this.observeCalls += 1;
+  }
+  unobserve(target: Element): void {
+    this.targets.delete(target);
+  }
+  disconnect(): void {
+    this.targets.clear();
+  }
   takeRecords(): IntersectionObserverEntry[] {
     return [];
   }
-  /** Simulate the sentinel intersecting the root. */
-  fireIntersecting(): void {
+  /** Simulate the sentinel entering or leaving the observer root. */
+  fire(isIntersecting = true): void {
+    const target = [...this.targets][0] ?? document.body;
     this.callback(
-      [{ isIntersecting: true, target: null } as unknown as IntersectionObserverEntry],
+      [{ isIntersecting, target } as unknown as IntersectionObserverEntry],
       this,
     );
   }
@@ -233,7 +244,7 @@ function renderPanel(
     panelId: "prompt-history",
     conversation: {
       openMessage: (messageId: string) => {
-        void messageId;
+        store.openedMessageIds.push(messageId);
         return store.openMessageResult;
       },
       history: host.conversation,
@@ -242,6 +253,21 @@ function renderPanel(
   };
   render(<PromptHistoryPanel {...props} />);
   return { store, host, props };
+}
+
+function revealOverflowToggle(textContent: string): void {
+  const mention = [...document.querySelectorAll("[data-ph-mention]")].find(
+    (node) => node.textContent === textContent,
+  );
+  const text = mention?.parentElement;
+  if (!(text instanceof HTMLSpanElement)) {
+    throw new Error("expected prompt mention wrapper");
+  }
+  Object.defineProperty(text, "scrollWidth", { configurable: true, value: 200 });
+  Object.defineProperty(text, "clientWidth", { configurable: true, value: 100 });
+  act(() => {
+    for (const observer of resizeObservers) observer.flush();
+  });
 }
 
 describe("PromptHistoryPanel", () => {
@@ -307,8 +333,8 @@ describe("PromptHistoryPanel", () => {
       ]),
     );
     // Newest-first page order is preserved.
-    expect(screen.getByText("newest prompt")).toBeTruthy();
-    expect(screen.getByText("older prompt")).toBeTruthy();
+    expect(document.querySelector('[data-message-id="newest"]')?.textContent).toContain("newest prompt");
+    expect(document.querySelector('[data-message-id="older"]')?.textContent).toContain("older prompt");
     // Ordinal and agent-sent flag.
     expect(screen.getByText("#2")).toBeTruthy();
     expect(screen.getByText("#1")).toBeTruthy();
@@ -319,16 +345,40 @@ describe("PromptHistoryPanel", () => {
     expect(screen.getByText("1s")).toBeTruthy();
   });
 
-  it("expands a row on expand and collapses it again", () => {
+  it("navigates from a native button with prompt content as its description", () => {
+    const single = message({ id: "m", content: "open me", createdAt: "2026-01-01T00:00:00Z" });
+    const { store } = renderPanel(makeMessages([single], { hasMore: false }), makeTurns([]));
+    const navigate = screen.getByRole("button", { name: "Prompt" });
+
+    expect(navigate.tagName).toBe("BUTTON");
+    expect(navigate.getAttribute("aria-describedby")).toBeTruthy();
+    act(() => {
+      navigate.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(store.openedMessageIds).toEqual(["m"]);
+  });
+
+  it("only offers expansion for overflowing text and collapses it again", () => {
     const single = message({ id: "m", content: "a long prompt", createdAt: "2026-01-01T00:00:00Z" });
     renderPanel(makeMessages([single], { hasMore: false }), makeTurns([]));
+    Object.defineProperty(screen.getByTestId("ph-plugin-panel"), "clientHeight", {
+      configurable: true,
+      value: 500,
+    });
+    act(() => {
+      for (const observer of resizeObservers) observer.flush();
+    });
+    expect(screen.queryByTestId("ph-plugin-expand-0")).toBeNull();
+
+    revealOverflowToggle("a long prompt");
     const expand = screen.getByTestId("ph-plugin-expand-0");
     expect(expand.getAttribute("aria-expanded")).toBe("false");
     act(() => {
       expand.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect(expand.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByTestId("ph-plugin-expanded-box-0")).toBeTruthy();
+    expect(screen.getByTestId("ph-plugin-expanded-box-0").style.maxHeight).toBe("200px");
     act(() => {
       expand.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
@@ -336,15 +386,133 @@ describe("PromptHistoryPanel", () => {
     expect(screen.queryByTestId("ph-plugin-expanded-box-0")).toBeNull();
   });
 
-  it("highlights favorited rows via the host favorite state", () => {
+  it("highlights favorited prompt bubbles via the host favorite state", () => {
     const single = message({ id: "m", content: "hi", createdAt: "2026-01-01T00:00:00Z" });
     const { store } = renderPanel(makeMessages([single], { hasMore: false }), makeTurns([]));
-    const row = screen.getByTestId("ph-plugin-row-0");
-    expect(row.className).not.toContain("ph-plugin-favorite");
+    const bubble = document.querySelector('[data-message-id="m"]');
+    expect(bubble?.className).not.toContain("ph-plugin-favorite");
     act(() => {
       store.setFavorite("m", true);
     });
-    expect(screen.getByTestId("ph-plugin-row-0").className).toContain("ph-plugin-favorite");
+    expect(document.querySelector('[data-message-id="m"]')?.className).toContain("ph-plugin-favorite");
+  });
+
+  it("re-measures overflow when live prompt content changes", () => {
+    const short = message({ id: "m", content: "short", createdAt: "2026-01-01T00:00:00Z" });
+    const { store } = renderPanel(makeMessages([short], { hasMore: false }), makeTurns([]));
+    const text = document.querySelector("[data-ph-mention]")?.parentElement;
+    if (!(text instanceof HTMLSpanElement)) throw new Error("expected prompt mention wrapper");
+    Object.defineProperty(text, "clientWidth", { configurable: true, value: 100 });
+    Object.defineProperty(text, "scrollWidth", {
+      configurable: true,
+      get: () => (text.textContent?.length ?? 0) * 10,
+    });
+    expect(screen.queryByTestId("ph-plugin-expand-0")).toBeNull();
+
+    act(() => {
+      store.setMessages(
+        makeMessages(
+          [message({ id: "m", content: "this prompt is now much longer", createdAt: short.createdAt })],
+          { hasMore: false },
+        ),
+      );
+    });
+
+    expect(screen.getByTestId("ph-plugin-expand-0")).toBeTruthy();
+  });
+
+  it("re-arms positive pagination and keeps a bottom-pinned user at the new bottom", async () => {
+    let scrollHeight = 200;
+    const loadMore = vi.fn(async () => {
+      scrollHeight += 100;
+      return 1;
+    });
+    renderPanel(
+      makeMessages(
+        [message({ id: "m", content: "page", promptIndex: 2 })],
+        { hasMore: true, loadMore },
+      ),
+      makeTurns([]),
+    );
+    const scroller = screen.getByTestId("ph-plugin-scroll");
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 100 });
+    Object.defineProperty(scroller, "scrollHeight", {
+      configurable: true,
+      get: () => scrollHeight,
+    });
+    Object.defineProperty(scroller, "scrollTop", { configurable: true, value: 100, writable: true });
+    const observer = MockIntersectionObserver.instances.at(-1);
+    if (!observer) throw new Error("expected pagination observer");
+
+    await act(async () => {
+      observer.fire();
+      await Promise.resolve();
+    });
+    expect(loadMore).toHaveBeenCalledTimes(1);
+    expect(scroller.scrollTop).toBe(300);
+    expect(observer.observeCalls).toBeGreaterThan(1);
+
+    await act(async () => {
+      observer.fire();
+      await Promise.resolve();
+    });
+    expect(loadMore).toHaveBeenCalledTimes(2);
+    expect(scroller.scrollTop).toBe(400);
+  });
+
+  it("disarms zero-progress pagination until a user gesture retries it", async () => {
+    const loadMore = vi.fn().mockResolvedValueOnce(0).mockResolvedValueOnce(1);
+    renderPanel(
+      makeMessages(
+        [message({ id: "m", content: "page", promptIndex: 2 })],
+        { hasMore: true, loadMore },
+      ),
+      makeTurns([]),
+    );
+    const observer = MockIntersectionObserver.instances.at(-1);
+    if (!observer) throw new Error("expected pagination observer");
+
+    await act(async () => {
+      observer.fire();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      observer.fire();
+      await Promise.resolve();
+    });
+    expect(loadMore).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      screen.getByTestId("ph-plugin-scroll").dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(loadMore).toHaveBeenCalledTimes(2);
+  });
+
+  it("measures row scrollability without the inline loading indicator", () => {
+    renderPanel(
+      makeMessages(
+        [message({ id: "m", content: "page", promptIndex: 2 })],
+        { hasMore: true, loadingMore: true },
+      ),
+      makeTurns([]),
+    );
+    const scroller = screen.getByTestId("ph-plugin-scroll");
+    const rows = scroller.querySelector(".ph-plugin-rows");
+    if (!(rows instanceof HTMLDivElement)) throw new Error("expected rows wrapper");
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 100 });
+    Object.defineProperty(rows, "scrollHeight", { configurable: true, value: 80 });
+    act(() => {
+      for (const observer of resizeObservers) observer.flush();
+    });
+    expect(screen.getByTestId("ph-plugin-loading-older").parentElement).toBe(scroller);
+    expect(rows.contains(screen.getByTestId("ph-plugin-loading-older"))).toBe(false);
+
+    Object.defineProperty(rows, "scrollHeight", { configurable: true, value: 120 });
+    act(() => {
+      for (const observer of resizeObservers) observer.flush();
+    });
+    expect(screen.getByTestId("ph-plugin-loading-older-floating")).toBeTruthy();
   });
 
   it("keeps committed rows visible on terminal removal with pagination stopped", () => {
@@ -358,7 +526,7 @@ describe("PromptHistoryPanel", () => {
       store.setMessages(makeMessages([single], { hasMore: true, removed: true }));
     });
     // Committed rows stay visible.
-    expect(screen.getByText("hi")).toBeTruthy();
+    expect(document.querySelector('[data-message-id="m"]')?.textContent).toContain("hi");
     // Pagination stops: the sentinel is gone.
     expect(screen.queryByTestId("ph-plugin-sentinel")).toBeNull();
   });
@@ -369,6 +537,7 @@ describe("PromptHistoryPanel", () => {
       makeMessages([single], { hasMore: false }),
       makeTurns([]),
     );
+    revealOverflowToggle("hi");
     // desktop/tablet + fine pointer: compact (24px).
     const expand = screen.getByTestId("ph-plugin-expand-0");
     expect(expand.className).toContain("ph-plugin-expand-compact");
