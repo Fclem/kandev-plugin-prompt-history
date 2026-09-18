@@ -545,6 +545,49 @@ describe("PromptHistoryPanel", () => {
     expect(scroller.scrollTop).toBe(400);
   });
 
+  it("keeps a bottom-pinned user at the bottom when the final page removes the sentinel", async () => {
+    let scrollHeight = 200;
+    let store: TestHostStore | undefined;
+    const finalMessages = Array.from({ length: 21 }, (_, index) =>
+      message({
+        id: `m-${index}`,
+        content: `prompt ${index}`,
+        promptIndex: 21 - index,
+        createdAt: `2026-01-01T00:00:${String(index).padStart(2, "0")}Z`,
+      }),
+    );
+    const loadMore = vi.fn(async () => {
+      scrollHeight = 2200;
+      store?.setMessages(makeMessages(finalMessages, { hasMore: false, loadMore }));
+      return 20;
+    });
+    ({ store } = renderPanel(
+      makeMessages([message({ id: "m", content: "page", promptIndex: 22 })], {
+        hasMore: true,
+        loadMore,
+      }),
+      makeTurns([]),
+    ));
+    const scroller = screen.getByTestId("ph-plugin-scroll");
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 100 });
+    Object.defineProperty(scroller, "scrollHeight", {
+      configurable: true,
+      get: () => scrollHeight,
+    });
+    Object.defineProperty(scroller, "scrollTop", { configurable: true, value: 100, writable: true });
+    const observer = MockIntersectionObserver.instances.at(-1);
+    if (!observer) throw new Error("expected pagination observer");
+
+    await act(async () => {
+      observer.fire();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByTestId("ph-plugin-sentinel")).toBeNull();
+    expect(scroller.scrollTop).toBe(2200);
+  });
+
   it("does not load from stale hidden geometry and rechecks when the panel is restored", async () => {
     const loadMore = vi.fn().mockResolvedValue(1);
     renderPanel(

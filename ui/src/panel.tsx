@@ -311,6 +311,7 @@ function usePanelOlderPromptSentinel(opts: {
   sentinelRef: (node: HTMLDivElement | null) => void;
   onUserGesture: () => void;
   recheck: () => void;
+  restorePinnedPosition: () => void;
 } {
   const [sentinelEl, setSentinelEl] = useState<HTMLDivElement | null>(null);
   const sentinelNodeRef = useRef<HTMLDivElement | null>(null);
@@ -326,6 +327,8 @@ function usePanelOlderPromptSentinel(opts: {
   const lifecycleRef = useRef(opts.lifecycleKey);
   const loadingRef = useRef(opts.messagesLoading);
   const generationRef = useRef(0);
+  const pendingBottomPinRef = useRef<{ generation: number; scrollHeight: number } | null>(null);
+  const bottomPinFrameRef = useRef<number | null>(null);
   const stateRef = useRef({
     shouldPaginate: opts.shouldPaginate,
     messagesLoading: opts.messagesLoading,
@@ -347,6 +350,11 @@ function usePanelOlderPromptSentinel(opts: {
       intersectingRef.current = false;
       disarmedRef.current = false;
       pinnedRef.current = false;
+      pendingBottomPinRef.current = null;
+      if (bottomPinFrameRef.current !== null) {
+        window.cancelAnimationFrame(bottomPinFrameRef.current);
+        bottomPinFrameRef.current = null;
+      }
     }
   }, [
     opts.lifecycleKey,
@@ -358,10 +366,44 @@ function usePanelOlderPromptSentinel(opts: {
 
   const refreshPinned = useCallback(() => {
     const scroller = opts.scrollRef.current;
-    pinnedRef.current = Boolean(
+    const pinned = Boolean(
       scroller && scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 24,
     );
+    pinnedRef.current = pinned;
+    if (!pinned) pendingBottomPinRef.current = null;
   }, [opts.scrollRef]);
+
+  const restorePinnedPosition = useCallback(() => {
+    const pending = pendingBottomPinRef.current;
+    if (!pending) return;
+    if (pending.generation !== generationRef.current) {
+      pendingBottomPinRef.current = null;
+      return;
+    }
+    const scroller = opts.scrollRef.current;
+    if (!scroller) return;
+    scroller.scrollTop = scroller.scrollHeight;
+    if (
+      scroller.scrollHeight !== pending.scrollHeight ||
+      !stateRef.current.shouldPaginate ||
+      sentinelNodeRef.current === null
+    ) {
+      pendingBottomPinRef.current = null;
+    }
+  }, [opts.scrollRef]);
+
+  const schedulePinnedPositionRestore = useCallback(() => {
+    if (bottomPinFrameRef.current !== null) return;
+    const generation = generationRef.current;
+    const frame = window.requestAnimationFrame(() => {
+      if (bottomPinFrameRef.current === frame) bottomPinFrameRef.current = null;
+      if (generation !== generationRef.current) return;
+      restorePinnedPosition();
+    });
+    bottomPinFrameRef.current = frame;
+  }, [restorePinnedPosition]);
+
+  useLayoutEffect(restorePinnedPosition);
 
   useEffect(() => {
     const previousScroller = attachedScrollerRef.current;
@@ -380,6 +422,10 @@ function usePanelOlderPromptSentinel(opts: {
       mountedRef.current = false;
       attachedScrollerRef.current?.removeEventListener("scroll", refreshPinned);
       attachedScrollerRef.current = null;
+      if (bottomPinFrameRef.current !== null) {
+        window.cancelAnimationFrame(bottomPinFrameRef.current);
+        bottomPinFrameRef.current = null;
+      }
     };
   }, [refreshPinned]);
 
@@ -410,6 +456,8 @@ function usePanelOlderPromptSentinel(opts: {
     const generation = generationRef.current;
 
     refreshPinned();
+    const preserveBottom = pinnedRef.current;
+    const scrollHeightBeforeLoad = opts.scrollRef.current?.scrollHeight ?? 0;
     requestInFlightRef.current = true;
     observer.unobserve(node);
     let count = 0;
@@ -437,17 +485,30 @@ function usePanelOlderPromptSentinel(opts: {
       return;
     }
 
+    if (mountedRef.current && count > 0 && !rejected && preserveBottom) {
+      pendingBottomPinRef.current = {
+        generation,
+        scrollHeight: scrollHeightBeforeLoad,
+      };
+      restorePinnedPosition();
+      if (pendingBottomPinRef.current) schedulePinnedPositionRestore();
+    }
+
     if (!mountedRef.current || observerRef.current !== observer) return;
     if (sentinelNodeRef.current !== node) return;
     if (count > 0 && !rejected) {
       disarmedRef.current = false;
-      const scroller = opts.scrollRef.current;
-      if (pinnedRef.current && scroller) scroller.scrollTop = scroller.scrollHeight;
     } else {
       disarmedRef.current = true;
     }
     observer.observe(node);
-  }, [opts.scrollRef, refreshPinned, isCurrentGeometryEligible]);
+  }, [
+    opts.scrollRef,
+    refreshPinned,
+    isCurrentGeometryEligible,
+    restorePinnedPosition,
+    schedulePinnedPositionRestore,
+  ]);
 
   useEffect(() => {
     const root = opts.scrollRef.current;
@@ -530,7 +591,7 @@ function usePanelOlderPromptSentinel(opts: {
   }, [fireLoad, isCurrentGeometryEligible]);
 
 
-  return { sentinelRef, onUserGesture, recheck };
+  return { sentinelRef, onUserGesture, recheck, restorePinnedPosition };
 }
 
 /** The prompt-history panel component. */
@@ -564,14 +625,15 @@ export function PromptHistoryPanel(props: PluginTaskPanelProps) {
   const showLoadingGrace = useLoadingGrace(sessionId, messagesState.loadingMore);
   const showLoading = shouldAutoLoad && (messagesState.loadingMore || showLoadingGrace);
 
-  const { sentinelRef, onUserGesture, recheck } = usePanelOlderPromptSentinel({
-    scrollRef,
-    lifecycleKey: sessionId,
-    shouldPaginate: shouldAutoLoad,
-    messagesLoading: messagesState.loading,
-    isLoadingMore: messagesState.loadingMore,
-    loadMore: messagesState.loadMore,
-  });
+  const { sentinelRef, onUserGesture, recheck, restorePinnedPosition } =
+    usePanelOlderPromptSentinel({
+      scrollRef,
+      lifecycleKey: sessionId,
+      shouldPaginate: shouldAutoLoad,
+      messagesLoading: messagesState.loading,
+      isLoadingMore: messagesState.loadingMore,
+      loadMore: messagesState.loadMore,
+    });
   const recheckFrameRef = useRef<number | null>(null);
   const recheckIdentityRef = useRef(0);
   useLayoutEffect(() => {
@@ -608,7 +670,11 @@ export function PromptHistoryPanel(props: PluginTaskPanelProps) {
     messagesState.messages,
     shouldAutoLoad,
   ]);
-  const isScrollable = usePanelContentScrollable(scrollRef, contentRef, scheduleRecheck);
+  const onGeometryChange = useCallback(() => {
+    restorePinnedPosition();
+    scheduleRecheck();
+  }, [restorePinnedPosition, scheduleRecheck]);
+  const isScrollable = usePanelContentScrollable(scrollRef, contentRef, onGeometryChange);
 
   const onNavigate = useCallback(
     (messageId: string) => {
