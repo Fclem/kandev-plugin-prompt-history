@@ -96,6 +96,14 @@ type RowProps = {
   PromptMentionText: ComponentType<{ text: string }>;
 };
 
+function isNestedInteractiveTarget(target: EventTarget | null, currentTarget: Element): boolean {
+  const interactiveTarget =
+    target instanceof Element
+      ? target.closest('button,a,input,select,textarea,[role="button"],[role="link"]')
+      : null;
+  return interactiveTarget !== null && interactiveTarget !== currentTarget;
+}
+
 function PromptHistoryRow({
   row,
   index,
@@ -145,6 +153,10 @@ function PromptHistoryRow({
             isFavorite ? " ph-plugin-favorite" : ""
           }`}
           data-message-id={row.messageId}
+          onClick={(event) => {
+            if (isNestedInteractiveTarget(event.target, event.currentTarget)) return;
+            onNavigate(row.messageId);
+          }}
         >
           {row.promptNumber !== null && (
             <span className="ph-plugin-number" aria-hidden="true">
@@ -717,6 +729,13 @@ export function PromptHistoryPanel(props: PluginTaskPanelProps) {
     },
     [onUserGesture],
   );
+  const onScrollerTouchStart = useCallback(
+    (event: React.TouchEvent<HTMLDivElement>) => {
+      if (isNestedInteractiveTarget(event.target, event.currentTarget)) return;
+      onUserGesture();
+    },
+    [onUserGesture],
+  );
 
   if (state.kind === "passthrough") {
     return (
@@ -776,7 +795,7 @@ export function PromptHistoryPanel(props: PluginTaskPanelProps) {
         onKeyDown={shouldAutoLoad ? onScrollerKeyDown : undefined}
         onPointerDown={shouldAutoLoad ? onScrollerPointerDown : undefined}
         onWheel={shouldAutoLoad ? onUserGesture : undefined}
-        onTouchStart={shouldAutoLoad ? onUserGesture : undefined}
+        onTouchStart={shouldAutoLoad ? onScrollerTouchStart : undefined}
       >
         <div className="ph-plugin-rows" ref={contentRef}>
           {rows.map((row, index) => (

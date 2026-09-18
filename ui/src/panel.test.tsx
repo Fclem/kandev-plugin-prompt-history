@@ -428,6 +428,65 @@ describe("PromptHistoryPanel", () => {
     expect(store.openedMessageIds).toEqual(["m"]);
   });
 
+  it("lets interactive prompt mentions handle pointer activation without navigating", () => {
+    const single = message({
+      id: "m",
+      content: "@interactive",
+      createdAt: "2026-01-01T00:00:00Z",
+    });
+    const { store } = renderPanel(makeMessages([single]), makeTurns([]));
+
+    act(() => {
+      screen.getByTestId("ph-test-mention").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+
+    expect(store.mentionActivations).toBe(1);
+    expect(store.openedMessageIds).toEqual([]);
+
+    act(() => {
+      document.querySelector('[data-message-id="m"]')?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+    expect(store.openedMessageIds).toEqual(["m"]);
+  });
+
+  it("does not retry disarmed pagination from nested touch controls", async () => {
+    const row = message({
+      id: "m",
+      content: "@interactive",
+      promptIndex: 2,
+      createdAt: "2026-01-01T00:00:00Z",
+    });
+    const loadMore = vi.fn().mockResolvedValueOnce(0).mockResolvedValueOnce(1);
+    renderPanel(
+      makeMessages([row], { hasMore: true, loadMore }),
+      makeTurns([]),
+    );
+    const observer = MockIntersectionObserver.instances.at(-1);
+    if (!observer) throw new Error("expected pagination observer");
+    await act(async () => {
+      observer.fire();
+      await Promise.resolve();
+    });
+    expect(loadMore).toHaveBeenCalledTimes(1);
+
+    revealOverflowToggle("@interactive");
+    const nestedControls = [
+      screen.getByTestId("ph-test-mention"),
+      screen.getByTestId("ph-plugin-expand-0"),
+      screen.getByTestId("ph-plugin-navigate-0"),
+    ];
+    for (const control of nestedControls) {
+      act(() => {
+        control.dispatchEvent(new Event("touchstart", { bubbles: true }));
+      });
+    }
+    expect(loadMore).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps the current rows when navigation reports an unavailable target", () => {
     const single = message({ id: "m", content: "stay here", createdAt: "2026-01-01T00:00:00Z" });
     const { store } = renderPanel(makeMessages([single]), makeTurns([]));

@@ -27,6 +27,7 @@ export class TestHostStore {
   favorites = new Set<string>();
   openMessageResult: { status: "accepted" | "unavailable" } = { status: "accepted" };
   openedMessageIds: string[] = [];
+  mentionActivations = 0;
   locale = "en";
 
   private listeners = new Set<() => void>();
@@ -145,7 +146,23 @@ export function createTestHost(
     },
     ui: {
       PromptMentionText: ({ text }: { text: string; interactive?: boolean }) =>
-        React.createElement("span", { "data-ph-mention": "true" }, text),
+        React.createElement(
+          "span",
+          { "data-ph-mention": "true" },
+          text === "@interactive"
+            ? React.createElement(
+                "button",
+                {
+                  type: "button",
+                  "data-testid": "ph-test-mention",
+                  onClick: () => {
+                    store.mentionActivations += 1;
+                  },
+                },
+                text,
+              )
+            : text,
+        ),
     },
     utils: {
       cn: (...inputs: unknown[]): string => inputs.filter(Boolean).join(" "),
