@@ -236,6 +236,7 @@ function overflowsPanel(contentHeight: number, rootClientHeight: number, vertica
 function usePanelContentScrollable(
   scrollRef: React.RefObject<HTMLDivElement | null>,
   contentRef: React.RefObject<HTMLDivElement | null>,
+  onGeometryChange: () => void,
 ): boolean {
   const [isScrollable, setIsScrollable] = useState(false);
   const measure = useCallback(() => {
@@ -248,13 +249,19 @@ function usePanelContentScrollable(
     return overflowsPanel(content.scrollHeight, scroller.clientHeight, verticalPadding);
   }, [scrollRef, contentRef]);
   useLayoutEffect(() => {
-    setIsScrollable(measure());
     const scroller = scrollRef.current;
-    if (!scroller) return;
-    const observer = new ResizeObserver(() => setIsScrollable(measure()));
+    const content = contentRef.current;
+    if (!scroller || !content) return;
+    const update = () => {
+      setIsScrollable(measure());
+      onGeometryChange();
+    };
+    update();
+    const observer = new ResizeObserver(update);
     observer.observe(scroller);
+    observer.observe(content);
     return () => observer.disconnect();
-  });
+  }, [scrollRef, contentRef, measure, onGeometryChange]);
   return isScrollable;
 }
 
@@ -296,6 +303,7 @@ function usePanelOlderPromptSentinel(opts: {
 }): {
   sentinelRef: (node: HTMLDivElement | null) => void;
   onUserGesture: () => void;
+  recheck: () => void;
 } {
   const [sentinelEl, setSentinelEl] = useState<HTMLDivElement | null>(null);
   const sentinelNodeRef = useRef<HTMLDivElement | null>(null);
@@ -360,6 +368,15 @@ function usePanelOlderPromptSentinel(opts: {
     };
   }, [refreshPinned]);
 
+  const isCurrentGeometryEligible = useCallback(() => {
+    const scroller = opts.scrollRef.current;
+    const sentinel = sentinelNodeRef.current;
+    if (!scroller || !sentinel || scroller.clientHeight === 0) return false;
+    const rootRect = scroller.getBoundingClientRect();
+    const sentinelRect = sentinel.getBoundingClientRect();
+    return sentinelRect.bottom >= rootRect.top && sentinelRect.top <= rootRect.bottom + 200;
+  }, [opts.scrollRef]);
+
   const fireLoad = useCallback(async () => {
     const node = sentinelNodeRef.current;
     const observer = observerRef.current;
@@ -369,7 +386,8 @@ function usePanelOlderPromptSentinel(opts: {
       !observer ||
       requestInFlightRef.current ||
       !state.shouldPaginate ||
-      state.messagesLoading
+      state.messagesLoading ||
+      !isCurrentGeometryEligible()
     ) {
       return;
     }
@@ -400,7 +418,7 @@ function usePanelOlderPromptSentinel(opts: {
       disarmedRef.current = true;
     }
     observer.observe(node);
-  }, [opts.scrollRef, refreshPinned]);
+  }, [opts.scrollRef, refreshPinned, isCurrentGeometryEligible]);
 
   useEffect(() => {
     const root = opts.scrollRef.current;
@@ -455,8 +473,22 @@ function usePanelOlderPromptSentinel(opts: {
     }
     void fireLoad();
   }, [fireLoad]);
+  const recheck = useCallback(() => {
+    const state = stateRef.current;
+    if (
+      !state.shouldPaginate ||
+      state.messagesLoading ||
+      requestInFlightRef.current ||
+      !isCurrentGeometryEligible()
+    ) {
+      return;
+    }
+    disarmedRef.current = false;
+    void fireLoad();
+  }, [fireLoad, isCurrentGeometryEligible]);
 
-  return { sentinelRef, onUserGesture };
+
+  return { sentinelRef, onUserGesture, recheck };
 }
 
 /** The prompt-history panel component. */
@@ -490,7 +522,7 @@ export function PromptHistoryPanel(props: PluginTaskPanelProps) {
   const showLoadingGrace = useLoadingGrace(sessionId, messagesState.loadingMore);
   const showLoading = shouldAutoLoad && (messagesState.loadingMore || showLoadingGrace);
 
-  const { sentinelRef, onUserGesture } = usePanelOlderPromptSentinel({
+  const { sentinelRef, onUserGesture, recheck } = usePanelOlderPromptSentinel({
     scrollRef,
     lifecycleKey: sessionId,
     shouldPaginate: shouldAutoLoad,
@@ -498,7 +530,25 @@ export function PromptHistoryPanel(props: PluginTaskPanelProps) {
     isLoadingMore: messagesState.loadingMore,
     loadMore: messagesState.loadMore,
   });
-  const isScrollable = usePanelContentScrollable(scrollRef, contentRef);
+  const recheckFrameRef = useRef<number | null>(null);
+  const scheduleRecheck = useCallback(() => {
+    if (recheckFrameRef.current !== null) return;
+    recheckFrameRef.current = window.requestAnimationFrame(() => {
+      recheckFrameRef.current = null;
+      recheck();
+    });
+  }, [recheck]);
+  useEffect(
+    () => () => {
+      if (recheckFrameRef.current !== null) {
+        window.cancelAnimationFrame(recheckFrameRef.current);
+        recheckFrameRef.current = null;
+      }
+    },
+    [scheduleRecheck],
+  );
+  useEffect(scheduleRecheck, [scheduleRecheck, sessionId, messagesState.messages]);
+  const isScrollable = usePanelContentScrollable(scrollRef, contentRef, scheduleRecheck);
 
   const onNavigate = useCallback(
     (messageId: string) => {

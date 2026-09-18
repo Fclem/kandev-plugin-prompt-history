@@ -261,6 +261,10 @@ function renderPanel(
     ...overrides,
   };
   const rendered = render(<PromptHistoryPanel {...props} />);
+  const scroller = screen.queryByTestId("ph-plugin-scroll");
+  if (scroller) {
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 100 });
+  }
   return { store, host, props, rerender: rendered.rerender };
 }
 
@@ -384,7 +388,6 @@ describe("PromptHistoryPanel", () => {
           taskId: "t",
           sessionId: "s",
           startedAt: "2026-01-01T00:00:00Z",
-          completedAt: null,
           updatedAt: "2026-01-01T00:00:00Z",
         },
       ]),
@@ -538,6 +541,33 @@ describe("PromptHistoryPanel", () => {
     });
     expect(loadMore).toHaveBeenCalledTimes(2);
     expect(scroller.scrollTop).toBe(400);
+  });
+
+  it("does not load from stale hidden geometry and rechecks when the panel is restored", async () => {
+    const loadMore = vi.fn().mockResolvedValue(1);
+    renderPanel(
+      makeMessages(
+        [message({ id: "m", content: "page", promptIndex: 2 })],
+        { hasMore: true, loadMore },
+      ),
+      makeTurns([]),
+    );
+    const scroller = screen.getByTestId("ph-plugin-scroll");
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 0 });
+    const observer = MockIntersectionObserver.instances.at(-1);
+    if (!observer) throw new Error("expected pagination observer");
+
+    observer.fire();
+    expect(loadMore).not.toHaveBeenCalled();
+
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 100 });
+    await act(async () => {
+      for (const resizeObserver of resizeObservers) resizeObserver.flush();
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+      await Promise.resolve();
+    });
+
+    expect(loadMore).toHaveBeenCalledTimes(1);
   });
 
   it("disarms zero-progress pagination until a user gesture retries it", async () => {
