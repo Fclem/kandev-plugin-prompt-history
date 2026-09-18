@@ -498,6 +498,7 @@ describe("PromptHistoryPanel", () => {
     expect(error.getAttribute("role")).toBe("status");
     expect(error.getAttribute("aria-live")).toBe("polite");
     const retryButton = screen.getByTestId("ph-plugin-retry");
+    expect(retryButton.textContent).toBe("Retry");
     act(() => {
       retryButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
@@ -915,6 +916,28 @@ describe("PromptHistoryPanel", () => {
     });
 
     expect(loadMore).toHaveBeenCalledTimes(1);
+
+    // A click on a row control is not a scroll-intent retry either.
+    act(() => {
+      screen.getByTestId("ph-plugin-navigate-0").dispatchEvent(
+        new MouseEvent("pointerdown", { bubbles: true }),
+      );
+      document.querySelector('[data-message-id="m"]')?.dispatchEvent(
+        new MouseEvent("pointerdown", { bubbles: true }),
+      );
+    });
+
+    expect(loadMore).toHaveBeenCalledTimes(1);
+
+    // The scroller itself still is.
+    await act(async () => {
+      screen.getByTestId("ph-plugin-scroll").dispatchEvent(
+        new MouseEvent("pointerdown", { bubbles: true }),
+      );
+      await Promise.resolve();
+    });
+
+    expect(loadMore).toHaveBeenCalledTimes(2);
   });
 
   it("renders the newest prompt first regardless of the seeded order", () => {
@@ -1471,6 +1494,42 @@ describe("PromptHistoryPanel", () => {
     });
 
     expect(loadMore).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-arms pagination when the disarmed sentinel leaves and re-enters", async () => {
+    const loadMore = vi.fn().mockResolvedValue(0);
+    renderPanel(
+      makeMessages(
+        [message({ id: "m", content: "page", promptIndex: 2 })],
+        { hasMore: true, loadMore },
+      ),
+      makeTurns([]),
+    );
+    const observer = MockIntersectionObserver.instances.at(-1);
+    if (!observer) throw new Error("expected pagination observer");
+
+    await act(async () => {
+      observer.fire();
+      await Promise.resolve();
+    });
+    expect(loadMore).toHaveBeenCalledTimes(1);
+
+    // Still intersecting while disarmed: the zero-progress page is not retried.
+    await act(async () => {
+      observer.fire();
+      await Promise.resolve();
+    });
+    expect(loadMore).toHaveBeenCalledTimes(1);
+
+    // An observed exit clears the disarm, so the next re-entry loads again.
+    act(() => {
+      observer.fire(false);
+    });
+    await act(async () => {
+      observer.fire();
+      await Promise.resolve();
+    });
+    expect(loadMore).toHaveBeenCalledTimes(2);
   });
 
   it("resets a zero-progress disarm when the active session changes", async () => {
