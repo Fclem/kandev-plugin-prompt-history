@@ -92,8 +92,6 @@ type RowProps = {
   t: (key: string, options?: Record<string, unknown>) => string;
   formatRelativeTime: (value: string | number | Date) => string;
   PromptMentionText: ComponentType<{ text: string }>;
-  isFinePointer: boolean;
-  isMobile: boolean;
 };
 
 function PromptHistoryRow({
@@ -107,8 +105,6 @@ function PromptHistoryRow({
   t,
   formatRelativeTime,
   PromptMentionText,
-  isFinePointer,
-  isMobile,
 }: RowProps) {
   const isFavorite = host().conversation.useMessageFavorite(sessionId, row.messageId);
   const textRef = useRef<HTMLSpanElement>(null);
@@ -118,7 +114,6 @@ function PromptHistoryRow({
     row.promptNumber == null
       ? t("promptHistoryPromptLabelGeneric")
       : t("promptHistoryPromptLabel", { values: { number: row.promptNumber } });
-  const compactExpand = isFinePointer && !isMobile;
   const updateOverflow = useCallback(() => {
     const text = textRef.current;
     if (text) setOverflow(text.scrollWidth > text.clientWidth);
@@ -165,9 +160,7 @@ function PromptHistoryRow({
           {showToggle && (
             <button
               type="button"
-              className={`ph-plugin-expand${compactExpand ? " ph-plugin-expand-compact" : ""}${
-                expanded ? " ph-plugin-expand-expanded" : ""
-              }`}
+              className={`ph-plugin-expand${expanded ? " ph-plugin-expand-expanded" : ""}`}
               aria-expanded={expanded}
               aria-label={t(expanded ? "collapsePrompt" : "expandPrompt")}
               data-testid={`ph-plugin-expand-${index}`}
@@ -474,10 +467,6 @@ export function PromptHistoryPanel(props: PluginTaskPanelProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const breakpoint = h.useResponsiveBreakpoint() as unknown as {
-    isMobile: boolean;
-    isFinePointer: boolean;
-  };
 
   const messagesState = conversation.history.useSessionMessages({
     sessionId,
@@ -589,8 +578,6 @@ export function PromptHistoryPanel(props: PluginTaskPanelProps) {
               t={t}
               formatRelativeTime={h.utils.formatRelativeTime}
               PromptMentionText={h.ui.PromptMentionText as ComponentType<{ text: string }>}
-              isFinePointer={breakpoint.isFinePointer}
-              isMobile={breakpoint.isMobile}
             />
           ))}
           {shouldAutoLoad && (

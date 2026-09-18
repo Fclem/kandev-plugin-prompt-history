@@ -163,14 +163,17 @@
   background: color-mix(in srgb, var(--background, #ffffff) 70%, transparent);
   color: var(--foreground, #18181b);
   cursor: pointer;
-  opacity: 0;
+  opacity: 1;
   transform: translateY(-50%);
   transition: opacity 150ms ease;
 }
 
-.ph-plugin-expand-compact {
-  width: 24px;
-  height: 24px;
+@media (min-width: 768px) and (pointer: fine) {
+  .ph-plugin-expand {
+    width: 24px;
+    height: 24px;
+    opacity: 0;
+  }
 }
 
 .ph-plugin-expand-expanded {
@@ -183,9 +186,6 @@
   opacity: 1;
 }
 
-.ph-plugin-expand:not(.ph-plugin-expand-compact) {
-  opacity: 1;
-}
 
 .ph-plugin-expand:hover {
   background: color-mix(in srgb, var(--background, #ffffff) 90%, transparent);

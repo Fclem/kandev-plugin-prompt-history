@@ -34,9 +34,13 @@ describe("determinePanelState", () => {
       },
     ]);
 
-  it("returns removed as the terminal state", () => {
-    const state = determinePanelState(makeMessages([], { removed: true }), "managed");
-    expect(state).toEqual({ kind: "removed" });
+  it("keeps committed rows for terminal removal and renders zero rows as empty", () => {
+    expect(determinePanelState(makeMessages([], { removed: true }), "managed")).toEqual({
+      kind: "empty",
+    });
+    expect(determinePanelState(makeMessages(rows().messages, { removed: true }), "managed")).toEqual({
+      kind: "removed",
+    });
   });
 
   it("returns passthrough for a passthrough session kind", () => {
@@ -46,6 +50,11 @@ describe("determinePanelState", () => {
 
   it("returns loading for the initial load with no rows", () => {
     const state = determinePanelState(makeMessages([], { loading: true }), "managed");
+    expect(state).toEqual({ kind: "loading" });
+  });
+
+  it("returns loading for the pinned host's initial unhydrated snapshot", () => {
+    const state = determinePanelState(makeMessages([], { hydrated: false }), "managed");
     expect(state).toEqual({ kind: "loading" });
   });
 
@@ -656,25 +665,15 @@ describe("PromptHistoryPanel", () => {
     expect(screen.queryByTestId("ph-plugin-sentinel")).toBeNull();
   });
 
-  it("sizes the expand control by the three-context matrix", () => {
-    const single = message({ id: "m", content: "hi", createdAt: "2026-01-01T00:00:00Z" });
-    const { store } = renderPanel(
-      makeMessages([single], { hasMore: false }),
-      makeTurns([]),
-    );
-    revealOverflowToggle("hi");
-    // desktop/tablet + fine pointer: compact (24px).
-    const expand = screen.getByTestId("ph-plugin-expand-0");
-    expect(expand.className).toContain("ph-plugin-expand-compact");
-    // desktop/tablet + coarse pointer: large (44px).
-    act(() => {
-      store.setBreakpoint({ isMobile: false, isFinePointer: false });
-    });
-    expect(screen.getByTestId("ph-plugin-expand-0").className).not.toContain("ph-plugin-expand-compact");
-    // phone-width + fine pointer: large (44px).
-    act(() => {
-      store.setBreakpoint({ isMobile: true, isFinePointer: true });
-    });
-    expect(screen.getByTestId("ph-plugin-expand-0").className).not.toContain("ph-plugin-expand-compact");
+  it("renders the empty state when terminal removal has no committed rows", () => {
+    renderPanel(makeMessages([], { removed: true }), makeTurns([]));
+    expect(screen.getByText("No prompts yet.")).toBeTruthy();
+    expect(screen.queryByTestId("ph-plugin-scroller")).toBeNull();
+  });
+
+  it("renders loading for the pinned host's unhydrated initial snapshot", () => {
+    renderPanel(makeMessages([], { hydrated: false }), makeTurns([]));
+    expect(screen.getByText("Loading...")).toBeTruthy();
+    expect(screen.queryByText("No prompts yet.")).toBeNull();
   });
 });

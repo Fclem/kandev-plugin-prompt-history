@@ -27,10 +27,6 @@ export class TestHostStore {
   favorites = new Set<string>();
   openMessageResult: { status: "accepted" | "unavailable" } = { status: "accepted" };
   openedMessageIds: string[] = [];
-  breakpoint: { isMobile: boolean; isFinePointer: boolean } = {
-    isMobile: false,
-    isFinePointer: true,
-  };
   locale = "en";
 
   private listeners = new Set<() => void>();
@@ -56,10 +52,6 @@ export class TestHostStore {
     this.emit();
   }
 
-  setBreakpoint(breakpoint: { isMobile: boolean; isFinePointer: boolean }): void {
-    this.breakpoint = breakpoint;
-    this.emit();
-  }
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
@@ -70,7 +62,6 @@ export class TestHostStore {
 
   getMessagesSnapshot = (): PluginSessionMessagesState => this.messagesState;
   getTurnsSnapshot = (): PluginSessionTurnsState => this.turnsState;
-  getBreakpointSnapshot = (): { isMobile: boolean; isFinePointer: boolean } => this.breakpoint;
 
   private emit(): void {
     for (const listener of this.listeners) listener();
@@ -160,7 +151,7 @@ export function createTestHost(
       cn: (...inputs: unknown[]): string => inputs.filter(Boolean).join(" "),
       formatRelativeTime: (_value: string | number | Date): string => "5 minutes ago",
     },
-    useResponsiveBreakpoint: () => useStore(store.getBreakpointSnapshot),
+    useResponsiveBreakpoint: () => ({ isMobile: false }),
     theme: "light" as const,
     onThemeChange: (_listener: (theme: "light" | "dark") => void): (() => void) => () => {},
     navigate: (_href: string) => {},
