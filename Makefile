@@ -1,5 +1,5 @@
 .PHONY: build run test test-backend test-ui typecheck ui ui-install fmt vet \
-	verify-package verify-package-host clean
+	package package-host verify-package verify-package-host clean
 
 BIN := bin/kandev-plugin-prompt-history
 VERSION := 0.1.0
@@ -60,7 +60,7 @@ vet:
 ## them, and pack the tree into $(PKG_OUT) with
 ## github.com/kandev/kandev/cmd/plugin-pack (resolved via the `replace` in
 ## go.mod). Install the tarball via Settings > Plugins or curl -F package=@...
-package:
+package: ui
 	rm -rf $(STAGE)
 	mkdir -p $(STAGE)/server $(STAGE)/ui
 	cp manifest.yaml $(STAGE)/manifest.yaml
@@ -77,7 +77,7 @@ package:
 
 ## Package for the host platform only — faster local iteration than the full
 ## 5-platform `make package` (matches plugin-pack's -platform-only).
-package-host:
+package-host: ui
 	rm -rf $(STAGE)
 	mkdir -p $(STAGE)/server $(STAGE)/ui
 	cp manifest.yaml $(STAGE)/manifest.yaml

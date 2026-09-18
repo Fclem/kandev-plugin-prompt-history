@@ -545,6 +545,52 @@ describe("PromptHistoryPanel", () => {
     expect(scroller.scrollTop).toBe(400);
   });
 
+  it("does not restore the bottom after the user scrolls away during a page load", async () => {
+    let resolveLoad: ((count: number) => void) | undefined;
+    let scrollHeight = 200;
+    const loadMore = vi.fn(
+      () =>
+        new Promise<number>((resolve) => {
+          resolveLoad = resolve;
+        }),
+    );
+    renderPanel(
+      makeMessages(
+        [message({ id: "m", content: "page", promptIndex: 2 })],
+        { hasMore: true, loadMore },
+      ),
+      makeTurns([]),
+    );
+    const scroller = screen.getByTestId("ph-plugin-scroll");
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 100 });
+    Object.defineProperty(scroller, "scrollHeight", {
+      configurable: true,
+      get: () => scrollHeight,
+    });
+    Object.defineProperty(scroller, "scrollTop", { configurable: true, value: 100, writable: true });
+    const observer = MockIntersectionObserver.instances.at(-1);
+    if (!observer) throw new Error("expected pagination observer");
+
+    await act(async () => {
+      observer.fire();
+      await Promise.resolve();
+    });
+    expect(loadMore).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      scroller.scrollTop = 0;
+      scroller.dispatchEvent(new Event("scroll"));
+    });
+    scrollHeight = 300;
+    await act(async () => {
+      resolveLoad?.(1);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(scroller.scrollTop).toBe(0);
+  });
+
   it("keeps a bottom-pinned user at the bottom when the final page removes the sentinel", async () => {
     let scrollHeight = 200;
     let store: TestHostStore | undefined;

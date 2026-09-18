@@ -485,7 +485,7 @@ function usePanelOlderPromptSentinel(opts: {
       return;
     }
 
-    if (mountedRef.current && count > 0 && !rejected && preserveBottom) {
+    if (mountedRef.current && count > 0 && !rejected && preserveBottom && pinnedRef.current) {
       pendingBottomPinRef.current = {
         generation,
         scrollHeight: scrollHeightBeforeLoad,
