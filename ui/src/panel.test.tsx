@@ -10,6 +10,7 @@ import {
 } from "./panel-state";
 import { derivePromptHistoryRows, type PromptHistoryRow } from "./derive";
 import { TestHostStore, createTestHost, makeMessages, makeTurns } from "./test-host";
+import { CATALOGS } from "./strings";
 import type {
   PluginConversationMessage,
   PluginSessionMessagesState,
@@ -277,6 +278,12 @@ function renderPanel(
     Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 100 });
   }
   return { store, host, props, rerender: rendered.rerender };
+}
+
+/** A minimal element rect for the pagination geometry gate, which reads only
+ * `top` and `bottom`. */
+function rect(top: number, bottom: number): DOMRect {
+  return { top, bottom } as unknown as DOMRect;
 }
 
 function revealOverflowToggle(textContent: string): void {
@@ -890,6 +897,42 @@ describe("PromptHistoryPanel", () => {
     }
   });
 
+  it("labels minute and hour durations from the catalog", () => {
+    const single = message({ id: "m", content: "long prompt", turnId: "turn" });
+    renderPanel(
+      makeMessages([single]),
+      makeTurns([
+        {
+          id: "turn",
+          taskId: "t",
+          sessionId: "s",
+          startedAt: "2026-01-01T00:00:00Z",
+          completedAt: "2026-01-01T01:01:05Z",
+          updatedAt: "2026-01-01T01:01:05Z",
+        },
+      ]),
+    );
+
+    expect(screen.getByTestId("ph-plugin-duration-0").textContent).toContain("1h 1m 5s");
+  });
+
+  it("renders one page of twenty prompts", () => {
+    const seeded = Array.from({ length: 25 }, (_value, index) =>
+      message({
+        id: `p${index + 2}`,
+        content: `prompt ${index + 2}`,
+        createdAt: `2026-01-01T00:00:${String(index).padStart(2, "0")}Z`,
+        promptIndex: index + 2,
+      }),
+    );
+    renderPanel(makeMessages(seeded, { hasMore: true }), makeTurns([]));
+
+    expect(document.querySelectorAll("[data-message-id]")).toHaveLength(20);
+    // The newest page: the oldest seeded prompt is beyond it.
+    expect(document.querySelector('[data-message-id="p26"]')).toBeTruthy();
+    expect(document.querySelector('[data-message-id="p2"]')).toBeNull();
+  });
+
   it("highlights favorited prompt bubbles via the host favorite state", () => {
     const single = message({ id: "m", content: "hi", createdAt: "2026-01-01T00:00:00Z" });
     const { store } = renderPanel(makeMessages([single], { hasMore: false }), makeTurns([]));
@@ -1054,6 +1097,50 @@ describe("PromptHistoryPanel", () => {
 
     expect(screen.queryByTestId("ph-plugin-sentinel")).toBeNull();
     expect(scroller.scrollTop).toBe(2200);
+  });
+
+  it("does not load while the sentinel sits outside the preload band", async () => {
+    const loadMore = vi.fn().mockResolvedValue(1);
+    renderPanel(
+      makeMessages([message({ id: "m", content: "page", promptIndex: 2 })], {
+        hasMore: true,
+        loadMore,
+      }),
+      makeTurns([]),
+    );
+    const scroller = screen.getByTestId("ph-plugin-scroll");
+    const sentinel = screen.getByTestId("ph-plugin-sentinel");
+    const observer = MockIntersectionObserver.instances.at(-1);
+    if (!observer) throw new Error("expected pagination observer");
+
+    // 800px below a 100px-tall scroller: far outside the preload band.
+    scroller.getBoundingClientRect = () => rect(0, 100);
+    sentinel.getBoundingClientRect = () => rect(900, 920);
+    await act(async () => {
+      observer.fire();
+      await Promise.resolve();
+    });
+    expect(loadMore).not.toHaveBeenCalled();
+
+    // Inside the band, the same trigger loads.
+    sentinel.getBoundingClientRect = () => rect(90, 110);
+    await act(async () => {
+      observer.fire();
+      await Promise.resolve();
+    });
+    expect(loadMore).toHaveBeenCalledTimes(1);
+  });
+
+  it("configures the sentinel's preload band below the scroller", () => {
+    renderPanel(
+      makeMessages([message({ id: "m", content: "page", promptIndex: 2 })], { hasMore: true }),
+      makeTurns([]),
+    );
+    const observer = MockIntersectionObserver.instances.at(-1);
+    if (!observer) throw new Error("expected pagination observer");
+
+    expect(observer.rootMargin).toBe("0px 0px 200px 0px");
+    expect(observer.options.root).toBe(screen.getByTestId("ph-plugin-scroll"));
   });
 
   it("does not load from stale hidden geometry and rechecks when the panel is restored", async () => {
@@ -1587,6 +1674,7 @@ describe("PromptHistoryPanel", () => {
     const inline = screen.getByTestId("ph-plugin-loading-older");
     expect(inline.getAttribute("role")).toBe("status");
     expect(inline.getAttribute("aria-live")).toBe("polite");
+    expect(inline.textContent).toBe(CATALOGS.en.loadingOlderMessages);
 
     const scroller = screen.getByTestId("ph-plugin-scroll");
     const rows = scroller.querySelector(".ph-plugin-rows");
@@ -1600,6 +1688,7 @@ describe("PromptHistoryPanel", () => {
     const floating = screen.getByTestId("ph-plugin-loading-older-floating");
     expect(floating.getAttribute("role")).toBe("status");
     expect(floating.getAttribute("aria-live")).toBe("polite");
+    expect(floating.textContent).toBe(CATALOGS.en.loadingOlderMessages);
   });
 
   it("holds the older-page indicator through the loading grace window", async () => {

@@ -75,17 +75,17 @@ export class TestHostStore {
   }
 
   /** The messages snapshot as the pinned facade would return it for `query`:
-   * the session scope, `authorTypes` and `sort` are the query's observable
-   * shaping (the panel relies on the session scope for isolation, on
-   * `authorTypes` to exclude agent-authored messages, and on `desc` for the
-   * newest-first order `derive` assumes), so the mock applies all three
-   * rather than handing back every message in store order. Results are cached
-   * per query and source snapshot, keeping the `useSyncExternalStore` snapshot
-   * referentially stable. */
+   * the session scope, `authorTypes`, `sort` and `pageSize` are the query's
+   * observable shaping (the panel relies on the session scope for isolation,
+   * on `authorTypes` to exclude agent-authored messages, on `desc` for the
+   * newest-first order `derive` assumes, and on the page size for one page of
+   * prompts), so the mock applies all four rather than handing back every
+   * message in store order. Results are cached per query and source snapshot,
+   * keeping the `useSyncExternalStore` snapshot referentially stable. */
   messagesForQuery(query: PluginSessionMessagesQuery): PluginSessionMessagesState {
     const authorTypes = query.authorTypes ?? [];
     const sort = query.sort ?? "desc";
-    const key = `${query.sessionId ?? ""}|${sort}|${[...authorTypes].join("|")}`;
+    const key = `${query.sessionId ?? ""}|${sort}|${query.pageSize ?? ""}|${[...authorTypes].join("|")}`;
     const cached = this.queryCache.get(key);
     if (cached && cached.source === this.messagesState) return cached.value;
     const source = this.messagesState;
@@ -96,7 +96,8 @@ export class TestHostStore {
         .filter(
           (message) => authorTypes.length === 0 || authorTypes.includes(message.authorType),
         )
-        .sort((left, right) => compareMessages(left, right, sort)),
+        .sort((left, right) => compareMessages(left, right, sort))
+        .slice(0, query.pageSize ?? 20),
     };
     this.queryCache.set(key, { source, value });
     return value;
