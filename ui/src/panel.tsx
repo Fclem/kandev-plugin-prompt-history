@@ -308,38 +308,46 @@ function usePanelOlderPromptSentinel(opts: {
   const [sentinelEl, setSentinelEl] = useState<HTMLDivElement | null>(null);
   const sentinelNodeRef = useRef<HTMLDivElement | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const observerGenerationRef = useRef(-1);
   const intersectingRef = useRef(false);
   const disarmedRef = useRef(false);
   const requestInFlightRef = useRef(false);
   const mountedRef = useRef(true);
   const pinnedRef = useRef(false);
   const loadMoreRef = useRef(opts.loadMore);
-  loadMoreRef.current = opts.loadMore;
   const attachedScrollerRef = useRef<HTMLDivElement | null>(null);
   const lifecycleRef = useRef(opts.lifecycleKey);
   const loadingRef = useRef(opts.messagesLoading);
   const generationRef = useRef(0);
-  const lifecycleChanged = lifecycleRef.current !== opts.lifecycleKey;
-  const rebindStarted = !loadingRef.current && opts.messagesLoading;
-  lifecycleRef.current = opts.lifecycleKey;
-  loadingRef.current = opts.messagesLoading;
-  if (lifecycleChanged || rebindStarted) {
-    generationRef.current += 1;
-    intersectingRef.current = false;
-    disarmedRef.current = false;
-    requestInFlightRef.current = false;
-    pinnedRef.current = false;
-  }
   const stateRef = useRef({
     shouldPaginate: opts.shouldPaginate,
     messagesLoading: opts.messagesLoading,
     isLoadingMore: opts.isLoadingMore,
   });
-  stateRef.current = {
-    shouldPaginate: opts.shouldPaginate,
-    messagesLoading: opts.messagesLoading,
-    isLoadingMore: opts.isLoadingMore,
-  };
+  useLayoutEffect(() => {
+    const lifecycleChanged = lifecycleRef.current !== opts.lifecycleKey;
+    const rebindStarted = !loadingRef.current && opts.messagesLoading;
+    lifecycleRef.current = opts.lifecycleKey;
+    loadingRef.current = opts.messagesLoading;
+    loadMoreRef.current = opts.loadMore;
+    stateRef.current = {
+      shouldPaginate: opts.shouldPaginate,
+      messagesLoading: opts.messagesLoading,
+      isLoadingMore: opts.isLoadingMore,
+    };
+    if (lifecycleChanged || rebindStarted) {
+      generationRef.current += 1;
+      intersectingRef.current = false;
+      disarmedRef.current = false;
+      pinnedRef.current = false;
+    }
+  }, [
+    opts.lifecycleKey,
+    opts.messagesLoading,
+    opts.isLoadingMore,
+    opts.shouldPaginate,
+    opts.loadMore,
+  ]);
 
   const refreshPinned = useCallback(() => {
     const scroller = opts.scrollRef.current;
@@ -377,7 +385,7 @@ function usePanelOlderPromptSentinel(opts: {
     return sentinelRect.bottom >= rootRect.top && sentinelRect.top <= rootRect.bottom + 200;
   }, [opts.scrollRef]);
 
-  const fireLoad = useCallback(async () => {
+  const fireLoad = useCallback(async (): Promise<void> => {
     const node = sentinelNodeRef.current;
     const observer = observerRef.current;
     const state = stateRef.current;
@@ -385,6 +393,7 @@ function usePanelOlderPromptSentinel(opts: {
       !node ||
       !observer ||
       requestInFlightRef.current ||
+      observerGenerationRef.current !== generationRef.current ||
       !state.shouldPaginate ||
       state.messagesLoading ||
       !isCurrentGeometryEligible()
@@ -403,10 +412,23 @@ function usePanelOlderPromptSentinel(opts: {
     } catch {
       rejected = true;
     } finally {
-      if (generation === generationRef.current) requestInFlightRef.current = false;
+      requestInFlightRef.current = false;
     }
 
-    if (generation !== generationRef.current) return;
+    if (generation !== generationRef.current) {
+      const currentState = stateRef.current;
+      if (
+        mountedRef.current &&
+        observerRef.current &&
+        sentinelNodeRef.current &&
+        currentState.shouldPaginate &&
+        !currentState.messagesLoading &&
+        isCurrentGeometryEligible()
+      ) {
+        void fireLoad();
+      }
+      return;
+    }
 
     if (!mountedRef.current || observerRef.current !== observer) return;
     if (sentinelNodeRef.current !== node) return;
@@ -423,10 +445,18 @@ function usePanelOlderPromptSentinel(opts: {
   useEffect(() => {
     const root = opts.scrollRef.current;
     if (!root || !sentinelEl) return;
+    const observerGeneration = generationRef.current;
     const observer = new IntersectionObserver(
-      (entries) => {
+      (entries, callbackObserver) => {
         const entry = entries[0];
-        if (!entry) return;
+        if (
+          !entry ||
+          callbackObserver !== observerRef.current ||
+          entry.target !== sentinelNodeRef.current ||
+          observerGeneration !== generationRef.current
+        ) {
+          return;
+        }
         intersectingRef.current = entry.isIntersecting;
         if (disarmedRef.current) {
           if (!entry.isIntersecting) disarmedRef.current = false;
@@ -438,11 +468,16 @@ function usePanelOlderPromptSentinel(opts: {
       },
       { root, rootMargin: "0px 0px 200px 0px" },
     );
+    observerGenerationRef.current = observerGeneration;
     observerRef.current = observer;
     observer.observe(sentinelEl);
     return () => {
       observer.disconnect();
-      if (observerRef.current === observer) observerRef.current = null;
+      if (observerRef.current === observer) {
+        observerRef.current = null;
+        intersectingRef.current = false;
+        observerGenerationRef.current = -1;
+      }
     };
   }, [sentinelEl, opts.scrollRef, opts.lifecycleKey, opts.messagesLoading, fireLoad]);
 
@@ -531,12 +566,23 @@ export function PromptHistoryPanel(props: PluginTaskPanelProps) {
     loadMore: messagesState.loadMore,
   });
   const recheckFrameRef = useRef<number | null>(null);
+  const recheckIdentityRef = useRef(0);
+  useLayoutEffect(() => {
+    recheckIdentityRef.current += 1;
+    if (recheckFrameRef.current !== null) {
+      window.cancelAnimationFrame(recheckFrameRef.current);
+      recheckFrameRef.current = null;
+    }
+  }, [sessionId, messagesState.loading, messagesState.loadingMore, messagesState.messages]);
   const scheduleRecheck = useCallback(() => {
     if (recheckFrameRef.current !== null) return;
-    recheckFrameRef.current = window.requestAnimationFrame(() => {
-      recheckFrameRef.current = null;
+    const identity = recheckIdentityRef.current;
+    const frame = window.requestAnimationFrame(() => {
+      if (recheckFrameRef.current === frame) recheckFrameRef.current = null;
+      if (recheckIdentityRef.current !== identity) return;
       recheck();
     });
+    recheckFrameRef.current = frame;
   }, [recheck]);
   useEffect(
     () => () => {
@@ -547,7 +593,14 @@ export function PromptHistoryPanel(props: PluginTaskPanelProps) {
     },
     [scheduleRecheck],
   );
-  useEffect(scheduleRecheck, [scheduleRecheck, sessionId, messagesState.messages]);
+  useEffect(scheduleRecheck, [
+    scheduleRecheck,
+    sessionId,
+    messagesState.loading,
+    messagesState.loadingMore,
+    messagesState.messages,
+    shouldAutoLoad,
+  ]);
   const isScrollable = usePanelContentScrollable(scrollRef, contentRef, scheduleRecheck);
 
   const onNavigate = useCallback(

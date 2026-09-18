@@ -177,6 +177,7 @@ class MockIntersectionObserver {
   readonly thresholds: number[];
   readonly targets = new Set<Element>();
   observeCalls = 0;
+  lastTarget: Element | null = null;
   static instances: MockIntersectionObserver[] = [];
   constructor(callback: IntersectionObserverCallback, options: IntersectionObserverInit = {}) {
     this.callback = callback;
@@ -188,6 +189,7 @@ class MockIntersectionObserver {
   }
   observe(target: Element): void {
     this.targets.add(target);
+    this.lastTarget = target;
     this.observeCalls += 1;
   }
   unobserve(target: Element): void {
@@ -201,7 +203,7 @@ class MockIntersectionObserver {
   }
   /** Simulate the sentinel entering or leaving the observer root. */
   fire(isIntersecting = true): void {
-    const target = [...this.targets][0] ?? document.body;
+    const target = [...this.targets][0] ?? this.lastTarget ?? document.body;
     this.callback(
       [{ isIntersecting, target } as unknown as IntersectionObserverEntry],
       this,
@@ -570,6 +572,55 @@ describe("PromptHistoryPanel", () => {
     expect(loadMore).toHaveBeenCalledTimes(1);
   });
 
+  it("drops a queued geometry recheck when the active session changes", async () => {
+    let nextFrame = 0;
+    const frames = new Map<number, FrameRequestCallback>();
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      nextFrame += 1;
+      frames.set(nextFrame, callback);
+      return nextFrame;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (_frame: number) => {});
+
+    const loadA = vi.fn().mockResolvedValue(1);
+    const loadB = vi.fn().mockResolvedValue(1);
+    const { store, props, rerender } = renderPanel(
+      makeMessages(
+        [message({ id: "a", sessionId: "a", content: "session a", promptIndex: 2 })],
+        { hasMore: true, loadMore: loadA },
+      ),
+      makeTurns([]),
+      { sessionId: "a" },
+    );
+    const frameA = frames.get(1);
+    if (!frameA) throw new Error("expected session A recheck frame");
+
+    act(() => {
+      store.setMessages(
+        makeMessages(
+          [message({ id: "b", sessionId: "b", content: "session b", promptIndex: 2 })],
+          { hasMore: true, loadMore: loadB },
+        ),
+      );
+      rerender(<PromptHistoryPanel {...props} sessionId="b" />);
+    });
+
+    await act(async () => {
+      frameA(0);
+      await Promise.resolve();
+    });
+    expect(loadA).not.toHaveBeenCalled();
+    expect(loadB).not.toHaveBeenCalled();
+
+    const frameB = frames.get(nextFrame);
+    if (!frameB || frameB === frameA) throw new Error("expected session B recheck frame");
+    await act(async () => {
+      frameB(0);
+      await Promise.resolve();
+    });
+    expect(loadB).toHaveBeenCalledTimes(1);
+  });
+
   it("disarms zero-progress pagination until a user gesture retries it", async () => {
     const loadMore = vi.fn().mockResolvedValueOnce(0).mockResolvedValueOnce(1);
     renderPanel(
@@ -680,7 +731,47 @@ describe("PromptHistoryPanel", () => {
     expect(loadB).toHaveBeenCalledTimes(1);
   });
 
-  it("ignores a stale pagination result after a same-session host rebind", async () => {
+  it("ignores queued intersection callbacks from a replaced session observer", async () => {
+    const loadA = vi.fn().mockResolvedValue(1);
+    const loadB = vi.fn().mockResolvedValue(1);
+    const { store, props, rerender } = renderPanel(
+      makeMessages(
+        [message({ id: "a", sessionId: "a", content: "session a", promptIndex: 2 })],
+        { hasMore: true, loadMore: loadA },
+      ),
+      makeTurns([]),
+      { sessionId: "a" },
+    );
+    const observerA = MockIntersectionObserver.instances.at(-1);
+    if (!observerA) throw new Error("expected session A observer");
+
+    act(() => {
+      store.setMessages(
+        makeMessages(
+          [message({ id: "b", sessionId: "b", content: "session b", promptIndex: 2 })],
+          { hasMore: true, loadMore: loadB },
+        ),
+      );
+      rerender(<PromptHistoryPanel {...props} sessionId="b" />);
+    });
+    const observerB = MockIntersectionObserver.instances.at(-1);
+    if (!observerB || observerB === observerA) throw new Error("expected session B observer");
+
+    await act(async () => {
+      observerA.fire();
+      await Promise.resolve();
+    });
+    expect(loadA).not.toHaveBeenCalled();
+    expect(loadB).not.toHaveBeenCalled();
+
+    await act(async () => {
+      observerB.fire();
+      await Promise.resolve();
+    });
+    expect(loadB).toHaveBeenCalledTimes(1);
+  });
+
+  it("replays eligible pagination after an in-flight same-session host rebind", async () => {
     let resolveStale: ((count: number) => void) | undefined;
     const staleLoad = vi.fn(
       () =>
@@ -715,9 +806,14 @@ describe("PromptHistoryPanel", () => {
     }
 
     await act(async () => {
+      currentObserver.fire();
+      await Promise.resolve();
+    });
+    expect(currentLoad).not.toHaveBeenCalled();
+
+    await act(async () => {
       resolveStale?.(0);
       await Promise.resolve();
-      currentObserver.fire();
       await Promise.resolve();
     });
     expect(currentLoad).toHaveBeenCalledTimes(1);
