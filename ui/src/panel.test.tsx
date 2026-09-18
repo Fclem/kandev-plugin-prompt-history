@@ -556,11 +556,7 @@ describe("PromptHistoryPanel", () => {
         createdAt: `2026-01-01T00:00:${String(index).padStart(2, "0")}Z`,
       }),
     );
-    const loadMore = vi.fn(async () => {
-      scrollHeight = 2200;
-      store?.setMessages(makeMessages(finalMessages, { hasMore: false, loadMore }));
-      return 20;
-    });
+    const loadMore = vi.fn().mockResolvedValue(20);
     ({ store } = renderPanel(
       makeMessages([message({ id: "m", content: "page", promptIndex: 22 })], {
         hasMore: true,
@@ -582,6 +578,13 @@ describe("PromptHistoryPanel", () => {
       observer.fire();
       await Promise.resolve();
       await Promise.resolve();
+    });
+    expect(loadMore).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("ph-plugin-sentinel")).toBeTruthy();
+
+    act(() => {
+      scrollHeight = 2200;
+      store?.setMessages(makeMessages(finalMessages, { hasMore: false, loadMore }));
     });
 
     expect(screen.queryByTestId("ph-plugin-sentinel")).toBeNull();
