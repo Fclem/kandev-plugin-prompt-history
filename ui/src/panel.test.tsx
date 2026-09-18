@@ -352,7 +352,9 @@ describe("PromptHistoryPanel", () => {
 
   it("renders the empty state when there are no prompts", () => {
     renderPanel(makeMessages([]), makeTurns([]));
-    expect(screen.getByText("No prompts yet.")).toBeTruthy();
+    const empty = screen.getByText("No prompts yet.");
+    expect(empty.getAttribute("role")).toBe("status");
+    expect(empty.getAttribute("aria-live")).toBe("polite");
   });
 
   it("hides rows and controls for passthrough sessions", () => {
@@ -457,6 +459,7 @@ describe("PromptHistoryPanel", () => {
       ]),
     );
     expect(screen.queryByText("3s")).toBeNull();
+    expect(screen.queryByTestId("ph-plugin-duration-0")).toBeNull();
 
     act(() => {
       store.setTurns(
@@ -476,13 +479,62 @@ describe("PromptHistoryPanel", () => {
     expect(screen.getByText("3s")).toBeTruthy();
   });
 
+  it("keeps expansion attached to its message across a live prepend", () => {
+    const older = message({ id: "older", content: "older prompt", promptIndex: 2 });
+    const { store } = renderPanel(makeMessages([older], { hasMore: false }), makeTurns([]));
+    revealOverflowToggle("older prompt");
+    act(() => {
+      screen.getByTestId("ph-plugin-expand-0").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+    expect(screen.getByTestId("ph-plugin-expanded-box-0").textContent).toContain("older prompt");
+
+    act(() => {
+      store.setMessages(
+        makeMessages([message({ id: "newer", content: "newer prompt", promptIndex: 3 }), older], {
+          hasMore: false,
+        }),
+      );
+    });
+
+    // Expansion is keyed by message id, so the box follows its own row to index
+    // 1 and nothing expands at index 0.
+    expect(screen.queryByTestId("ph-plugin-expanded-box-0")).toBeNull();
+    expect(screen.getByTestId("ph-plugin-expanded-box-1").textContent).toContain("older prompt");
+  });
+
+  it("renders no ordinal or duration for a row that has neither", () => {
+    const bare = message({ id: "bare", content: "no metadata" });
+    renderPanel(makeMessages([bare], { hasMore: false }), makeTurns([]));
+    const bubble = document.querySelector('[data-message-id="bare"]');
+    expect(bubble?.querySelector(".ph-plugin-number")).toBeNull();
+    expect(screen.queryByTestId("ph-plugin-duration-0")).toBeNull();
+  });
+
+  it("does not list agent-authored messages", () => {
+    const userRow = message({ id: "u", content: "user prompt", promptIndex: 2 });
+    const agentRow = message({
+      id: "a",
+      content: "agent prompt",
+      authorType: "agent",
+      promptIndex: 1,
+    });
+    renderPanel(makeMessages([userRow, agentRow], { hasMore: false }), makeTurns([]));
+
+    expect(document.querySelector('[data-message-id="u"]')).toBeTruthy();
+    expect(document.querySelector('[data-message-id="a"]')).toBeNull();
+  });
+
   it("navigates from a native button with prompt content as its description", () => {
     const single = message({ id: "m", content: "open me", createdAt: "2026-01-01T00:00:00Z" });
     const { store } = renderPanel(makeMessages([single], { hasMore: false }), makeTurns([]));
     const navigate = screen.getByRole("button", { name: "Prompt" });
 
     expect(navigate.tagName).toBe("BUTTON");
-    expect(navigate.getAttribute("aria-describedby")).toBeTruthy();
+    const descriptionId = navigate.getAttribute("aria-describedby");
+    expect(descriptionId).toBeTruthy();
+    expect(document.getElementById(descriptionId ?? "")?.textContent).toBe("open me");
     act(() => {
       navigate.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });

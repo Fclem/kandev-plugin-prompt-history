@@ -16,6 +16,7 @@ import type {
   PluginHost,
   PluginConversationMessage,
   PluginConversationTurn,
+  PluginSessionMessagesQuery,
   PluginSessionMessagesState,
   PluginSessionTurnsState,
 } from "./host";
@@ -31,10 +32,31 @@ export class TestHostStore {
   locale = "en";
 
   private listeners = new Set<() => void>();
+  private authorFiltered = new Map<string, { source: PluginSessionMessagesState; value: PluginSessionMessagesState }>();
 
   constructor(messagesState: PluginSessionMessagesState, turnsState: PluginSessionTurnsState) {
     this.messagesState = messagesState;
     this.turnsState = turnsState;
+  }
+
+  /** The messages snapshot as the pinned facade would return it for `query`:
+   * `authorTypes` is the filter the panel relies on to exclude agent-authored
+   * messages, so the mock honors it rather than handing back every message.
+   * Results are cached per filter and the source snapshot, keeping the
+   * `useSyncExternalStore` snapshot referentially stable. */
+  messagesForQuery(query: PluginSessionMessagesQuery): PluginSessionMessagesState {
+    const authorTypes = query.authorTypes;
+    if (!authorTypes || authorTypes.length === 0) return this.messagesState;
+    const key = [...authorTypes].join("|");
+    const cached = this.authorFiltered.get(key);
+    if (cached && cached.source === this.messagesState) return cached.value;
+    const source = this.messagesState;
+    const value: PluginSessionMessagesState = {
+      ...source,
+      messages: source.messages.filter((message) => authorTypes.includes(message.authorType)),
+    };
+    this.authorFiltered.set(key, { source, value });
+    return value;
   }
 
   setMessages(state: PluginSessionMessagesState): void {
@@ -61,7 +83,6 @@ export class TestHostStore {
     };
   };
 
-  getMessagesSnapshot = (): PluginSessionMessagesState => this.messagesState;
   getTurnsSnapshot = (): PluginSessionTurnsState => this.turnsState;
 
   private emit(): void {
@@ -130,8 +151,8 @@ export function createTestHost(
     React,
     jsx: (React as unknown as { createElement: unknown }).createElement,
     conversation: {
-      useSessionMessages: (_query: unknown): PluginSessionMessagesState =>
-        useStore(store.getMessagesSnapshot),
+      useSessionMessages: (query: PluginSessionMessagesQuery): PluginSessionMessagesState =>
+        useStore(() => store.messagesForQuery(query)),
       useSessionTurns: (_sessionId: string | null, _taskId?: string | null): PluginSessionTurnsState =>
         useStore(store.getTurnsSnapshot),
       useMessageFavorite: (_sessionId: string | null, messageId: string): boolean =>

@@ -202,7 +202,7 @@ contracts.
   updating the `ui.bundle` comment in `manifest.yaml` (esbuild output, no
   longer hand-written).
 - CI: each workflow gains the `kandev-plugin-voice` UI steps -
-  `Set up Node` (node 24), `Set up pnpm` (v10), and `make ui-install` -
+  `Set up Node` (node 22), `Set up pnpm` (v10), and `make ui-install` -
   anchored to its verification step, not to packaging (all three have
   no Node steps after Task 01's strip): `ci.yml` gains them immediately
   before its `Test` step, then `make typecheck`, `make test-ui`, and

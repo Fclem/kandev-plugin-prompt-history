@@ -182,7 +182,7 @@ vitest tests against a `test-host` mock. The Makefile `test` target
 becomes `test-backend test-ui` (for local runs; `ci.yml`'s `Test` step
 runs `make test-backend` instead, mirroring `kandev-plugin-voice`'s
 `make test-go`, so the UI suite runs exactly once, in its own step after typechecking). CI
-gains the `kandev-plugin-voice` UI steps - `Set up Node` (node 24),
+gains the `kandev-plugin-voice` UI steps - `Set up Node` (node 22,
 `Set up pnpm` (v10), and `make ui-install` - anchored to each
 workflow's verification step, not to packaging (all three workflows
 have no Node steps after Task 01's strip): `ci.yml` gains them
