@@ -295,6 +295,7 @@ function useLoadingGrace(sessionId: string | null, isLoadingMore: boolean): bool
  * zero-progress loads disarm until the sentinel exits or the user gestures. */
 function usePanelOlderPromptSentinel(opts: {
   scrollRef: React.RefObject<HTMLDivElement | null>;
+  lifecycleKey: string | null;
   shouldPaginate: boolean;
   messagesLoading: boolean;
   isLoadingMore: boolean;
@@ -314,6 +315,16 @@ function usePanelOlderPromptSentinel(opts: {
   const loadMoreRef = useRef(opts.loadMore);
   loadMoreRef.current = opts.loadMore;
   const attachedScrollerRef = useRef<HTMLDivElement | null>(null);
+  const lifecycleRef = useRef(opts.lifecycleKey);
+  const generationRef = useRef(0);
+  if (lifecycleRef.current !== opts.lifecycleKey) {
+    lifecycleRef.current = opts.lifecycleKey;
+    generationRef.current += 1;
+    intersectingRef.current = false;
+    disarmedRef.current = false;
+    requestInFlightRef.current = false;
+    pinnedRef.current = false;
+  }
   const stateRef = useRef({
     shouldPaginate: opts.shouldPaginate,
     messagesLoading: opts.messagesLoading,
@@ -365,6 +376,7 @@ function usePanelOlderPromptSentinel(opts: {
     ) {
       return;
     }
+    const generation = generationRef.current;
 
     refreshPinned();
     requestInFlightRef.current = true;
@@ -376,8 +388,10 @@ function usePanelOlderPromptSentinel(opts: {
     } catch {
       rejected = true;
     } finally {
-      requestInFlightRef.current = false;
+      if (generation === generationRef.current) requestInFlightRef.current = false;
     }
+
+    if (generation !== generationRef.current) return;
 
     if (!mountedRef.current || observerRef.current !== observer) return;
     if (sentinelNodeRef.current !== node) return;
@@ -415,7 +429,7 @@ function usePanelOlderPromptSentinel(opts: {
       observer.disconnect();
       if (observerRef.current === observer) observerRef.current = null;
     };
-  }, [sentinelEl, opts.scrollRef, fireLoad]);
+  }, [sentinelEl, opts.scrollRef, opts.lifecycleKey, fireLoad]);
 
   useEffect(() => {
     if (
@@ -485,6 +499,7 @@ export function PromptHistoryPanel(props: PluginTaskPanelProps) {
 
   const { sentinelRef, onUserGesture } = usePanelOlderPromptSentinel({
     scrollRef,
+    lifecycleKey: sessionId,
     shouldPaginate: shouldAutoLoad,
     messagesLoading: messagesState.loading,
     isLoadingMore: messagesState.loadingMore,

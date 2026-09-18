@@ -11,7 +11,7 @@ api_version: 2
 version: "0.1.0"
 display_name: "Prompt History"
 description: "Task panel listing the active session's user prompts with parity to the shipped core panel."
-author: "Fclem"
+author: "kandev"
 repo_url: "https://github.com/kdlbs/kandev-plugin-prompt-history"
 categories: ["tools"]
 
@@ -20,11 +20,11 @@ categories: ["tools"]
 # refuses the package if it is older, so an operator gets a clear error instead
 # of a plugin that loads and then fails on a missing API.
 #
-# 0.94.1 is the first release carrying the browser conversation facade
-# (PR #3588) that ui/bundle.js calls through host.conversation. The messages
-# capability audit floor is 0.91.1; this plugin needs the facade, so the
-# facade floor is the binding minimum.
-min_kandev_version: "0.94.1"
+# 0.95.0 is the first stable release after PR #3588 added the browser
+# conversation facade that ui/bundle.js calls through host.conversation. The
+# messages capability audit floor is 0.91.1; this plugin needs the facade, so
+# the facade release is the binding minimum.
+min_kandev_version: "0.95.0"
 
 # runtime.executables maps each supported platform to the binary kandev
 # spawns as a gRPC subprocess. `make package` cross-compiles all five;

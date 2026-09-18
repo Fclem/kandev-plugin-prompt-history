@@ -251,8 +251,8 @@ function renderPanel(
     },
     ...overrides,
   };
-  render(<PromptHistoryPanel {...props} />);
-  return { store, host, props };
+  const rendered = render(<PromptHistoryPanel {...props} />);
+  return { store, host, props, rerender: rendered.rerender };
 }
 
 function revealOverflowToggle(textContent: string): void {
@@ -487,6 +487,87 @@ describe("PromptHistoryPanel", () => {
       await Promise.resolve();
     });
     expect(loadMore).toHaveBeenCalledTimes(2);
+  });
+
+  it("resets a zero-progress disarm when the active session changes", async () => {
+    const loadA = vi.fn().mockResolvedValue(0);
+    const loadB = vi.fn().mockResolvedValue(1);
+    const { store, props, rerender } = renderPanel(
+      makeMessages(
+        [message({ id: "a", sessionId: "a", content: "session a", promptIndex: 2 })],
+        { hasMore: true, loadMore: loadA },
+      ),
+      makeTurns([]),
+      { sessionId: "a" },
+    );
+    const observerA = MockIntersectionObserver.instances.at(-1);
+    if (!observerA) throw new Error("expected session A observer");
+    await act(async () => {
+      observerA.fire();
+      await Promise.resolve();
+    });
+    expect(loadA).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      store.setMessages(
+        makeMessages(
+          [message({ id: "b", sessionId: "b", content: "session b", promptIndex: 2 })],
+          { hasMore: true, loadMore: loadB },
+        ),
+      );
+      rerender(<PromptHistoryPanel {...props} sessionId="b" />);
+    });
+    const observerB = MockIntersectionObserver.instances.at(-1);
+    if (!observerB || observerB === observerA) throw new Error("expected session B observer");
+    await act(async () => {
+      observerB.fire();
+      await Promise.resolve();
+    });
+    expect(loadB).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores an older session pagination result after switching sessions", async () => {
+    let resolveA: ((count: number) => void) | undefined;
+    const loadA = vi.fn(
+      () =>
+        new Promise<number>((resolve) => {
+          resolveA = resolve;
+        }),
+    );
+    const loadB = vi.fn().mockResolvedValue(1);
+    const { store, props, rerender } = renderPanel(
+      makeMessages(
+        [message({ id: "a", sessionId: "a", content: "session a", promptIndex: 2 })],
+        { hasMore: true, loadMore: loadA },
+      ),
+      makeTurns([]),
+      { sessionId: "a" },
+    );
+    const observerA = MockIntersectionObserver.instances.at(-1);
+    if (!observerA) throw new Error("expected session A observer");
+    await act(async () => {
+      observerA.fire();
+      await Promise.resolve();
+    });
+
+    act(() => {
+      store.setMessages(
+        makeMessages(
+          [message({ id: "b", sessionId: "b", content: "session b", promptIndex: 2 })],
+          { hasMore: true, loadMore: loadB },
+        ),
+      );
+      rerender(<PromptHistoryPanel {...props} sessionId="b" />);
+    });
+    const observerB = MockIntersectionObserver.instances.at(-1);
+    if (!observerB || observerB === observerA) throw new Error("expected session B observer");
+    await act(async () => {
+      resolveA?.(0);
+      await Promise.resolve();
+      observerB.fire();
+      await Promise.resolve();
+    });
+    expect(loadB).toHaveBeenCalledTimes(1);
   });
 
   it("measures row scrollability without the inline loading indicator", () => {
