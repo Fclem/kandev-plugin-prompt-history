@@ -479,6 +479,52 @@ describe("PromptHistoryPanel", () => {
     expect(screen.getByText("3s")).toBeTruthy();
   });
 
+  it("renders a 0s duration for a sub-second completed turn", () => {
+    const single = message({ id: "m", content: "quick prompt", turnId: "turn" });
+    renderPanel(
+      makeMessages([single]),
+      makeTurns([
+        {
+          id: "turn",
+          taskId: "t",
+          sessionId: "s",
+          startedAt: "2026-01-01T00:00:00Z",
+          completedAt: "2026-01-01T00:00:00Z",
+          updatedAt: "2026-01-01T00:00:00Z",
+        },
+      ]),
+    );
+
+    expect(screen.getByTestId("ph-plugin-duration-0").textContent).toContain("0s");
+  });
+
+  it("keeps a zero-prompt page with more to load paginatable", () => {
+    renderPanel(makeMessages([], { hasMore: true }), makeTurns([]));
+
+    expect(screen.getByTestId("ph-plugin-sentinel")).toBeTruthy();
+    expect(screen.queryByText("No prompts yet.")).toBeNull();
+  });
+
+  it("falls back to a 40vh cap when the panel has no measurable height", () => {
+    const single = message({ id: "m", content: "long prompt", promptIndex: 2 });
+    renderPanel(makeMessages([single], { hasMore: false }), makeTurns([]));
+    Object.defineProperty(screen.getByTestId("ph-plugin-panel"), "clientHeight", {
+      configurable: true,
+      value: 0,
+    });
+    act(() => {
+      for (const observer of resizeObservers) observer.flush();
+    });
+    revealOverflowToggle("long prompt");
+    act(() => {
+      screen.getByTestId("ph-plugin-expand-0").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+
+    expect(screen.getByTestId("ph-plugin-expanded-box-0").style.maxHeight).toBe("40vh");
+  });
+
   it("keeps expansion attached to its message across a live prepend", () => {
     const older = message({ id: "older", content: "older prompt", promptIndex: 2 });
     const { store } = renderPanel(makeMessages([older], { hasMore: false }), makeTurns([]));
@@ -1305,6 +1351,36 @@ describe("PromptHistoryPanel", () => {
       for (const observer of resizeObservers) observer.flush();
     });
     expect(screen.getByTestId("ph-plugin-loading-older-floating")).toBeTruthy();
+  });
+
+  it("subtracts the scroller padding when measuring scrollability", () => {
+    renderPanel(
+      makeMessages(
+        [message({ id: "m", content: "page", promptIndex: 2 })],
+        { hasMore: true, loadingMore: true },
+      ),
+      makeTurns([]),
+    );
+    const scroller = screen.getByTestId("ph-plugin-scroll");
+    const rows = scroller.querySelector(".ph-plugin-rows");
+    if (!(rows instanceof HTMLDivElement)) throw new Error("expected rows wrapper");
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 100 });
+    scroller.style.paddingTop = "10px";
+    scroller.style.paddingBottom = "10px";
+
+    // 90px of content exceeds the 80px content box, so the panel scrolls.
+    Object.defineProperty(rows, "scrollHeight", { configurable: true, value: 90 });
+    act(() => {
+      for (const observer of resizeObservers) observer.flush();
+    });
+    expect(screen.getByTestId("ph-plugin-loading-older-floating")).toBeTruthy();
+
+    // 80px fits that content box exactly, so it does not.
+    Object.defineProperty(rows, "scrollHeight", { configurable: true, value: 80 });
+    act(() => {
+      for (const observer of resizeObservers) observer.flush();
+    });
+    expect(screen.getByTestId("ph-plugin-loading-older").parentElement).toBe(scroller);
   });
 
   it("holds the older-page indicator through the loading grace window", async () => {
