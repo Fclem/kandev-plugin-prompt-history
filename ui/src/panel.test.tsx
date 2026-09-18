@@ -846,6 +846,50 @@ describe("PromptHistoryPanel", () => {
     expect(scroller.tabIndex).toBe(0);
   });
 
+  it("lists only the prompts of the panel's own session", () => {
+    const mine = message({
+      id: "mine",
+      sessionId: "s",
+      content: "my prompt",
+      createdAt: "2026-01-01T00:00:00Z",
+      promptIndex: 2,
+    });
+    const other = message({
+      id: "other",
+      sessionId: "other",
+      content: "their prompt",
+      createdAt: "2026-01-01T00:00:05Z",
+      promptIndex: 3,
+    });
+    renderPanel(makeMessages([mine, other], { hasMore: false }), makeTurns([]));
+
+    expect(document.querySelector('[data-message-id="mine"]')).toBeTruthy();
+    expect(document.querySelector('[data-message-id="other"]')).toBeNull();
+  });
+
+  it("describes each row's navigate control with that row's own prompt", () => {
+    const newer = message({
+      id: "newer",
+      content: "second prompt",
+      createdAt: "2026-01-01T00:00:05Z",
+      promptIndex: 2,
+    });
+    const older = message({
+      id: "older",
+      content: "first prompt",
+      createdAt: "2026-01-01T00:00:00Z",
+      promptIndex: 1,
+    });
+    renderPanel(makeMessages([older, newer], { hasMore: false }), makeTurns([]));
+
+    for (const [index, content] of ["second prompt", "first prompt"].entries()) {
+      const navigate = screen.getByTestId(`ph-plugin-navigate-${index}`);
+      const descriptionId = navigate.getAttribute("aria-describedby");
+      expect(descriptionId).toBeTruthy();
+      expect(document.getElementById(descriptionId ?? "")?.textContent).toBe(content);
+    }
+  });
+
   it("highlights favorited prompt bubbles via the host favorite state", () => {
     const single = message({ id: "m", content: "hi", createdAt: "2026-01-01T00:00:00Z" });
     const { store } = renderPanel(makeMessages([single], { hasMore: false }), makeTurns([]));
@@ -1110,11 +1154,7 @@ describe("PromptHistoryPanel", () => {
   });
 
   it("retries disarmed pagination through keyboard and scrollbar gestures", async () => {
-    const loadMore = vi
-      .fn()
-      .mockResolvedValueOnce(0)
-      .mockResolvedValueOnce(0)
-      .mockResolvedValueOnce(1);
+    const loadMore = vi.fn().mockResolvedValue(0);
     renderPanel(
       makeMessages(
         [message({ id: "m", content: "page", promptIndex: 2 })],
@@ -1137,17 +1177,29 @@ describe("PromptHistoryPanel", () => {
 
     const scroller = screen.getByTestId("ph-plugin-scroll");
     expect(scroller.tabIndex).toBe(0);
+    // Every key the scroller declares is a retry gesture; each zero-progress
+    // page leaves the pagination disarmed, so each press retries exactly once.
+    const keys = ["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "];
+    for (const [index, key] of keys.entries()) {
+      await act(async () => {
+        scroller.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+        await Promise.resolve();
+      });
+      expect(loadMore).toHaveBeenCalledTimes(index + 2);
+    }
+
+    // A key outside the declared set is not a retry gesture.
     await act(async () => {
-      scroller.dispatchEvent(new KeyboardEvent("keydown", { key: "PageDown", bubbles: true }));
+      scroller.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));
       await Promise.resolve();
     });
-    expect(loadMore).toHaveBeenCalledTimes(2);
+    expect(loadMore).toHaveBeenCalledTimes(keys.length + 1);
 
     await act(async () => {
       scroller.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
       await Promise.resolve();
     });
-    expect(loadMore).toHaveBeenCalledTimes(3);
+    expect(loadMore).toHaveBeenCalledTimes(keys.length + 2);
   });
 
   it("issues one older-page load per touch tap on the scroller", async () => {
@@ -1509,6 +1561,45 @@ describe("PromptHistoryPanel", () => {
       for (const observer of resizeObservers) observer.flush();
     });
     expect(screen.getByTestId("ph-plugin-loading-older").parentElement).toBe(scroller);
+  });
+
+  it("stops rendering the older-page indicator once the session is terminal", () => {
+    const single = message({ id: "m", content: "page", promptIndex: 2 });
+    renderPanel(
+      makeMessages([single], { hasMore: false, loadingMore: true, removed: true }),
+      makeTurns([]),
+    );
+
+    // The committed row still renders; the unresolvable load does not.
+    expect(document.querySelector('[data-message-id="m"]')).toBeTruthy();
+    expect(screen.queryByTestId("ph-plugin-loading-older")).toBeNull();
+    expect(screen.queryByTestId("ph-plugin-loading-older-floating")).toBeNull();
+  });
+
+  it("reports the older-page indicator as a polite live status region", () => {
+    renderPanel(
+      makeMessages(
+        [message({ id: "m", content: "page", promptIndex: 2 })],
+        { hasMore: true, loadingMore: true },
+      ),
+      makeTurns([]),
+    );
+    const inline = screen.getByTestId("ph-plugin-loading-older");
+    expect(inline.getAttribute("role")).toBe("status");
+    expect(inline.getAttribute("aria-live")).toBe("polite");
+
+    const scroller = screen.getByTestId("ph-plugin-scroll");
+    const rows = scroller.querySelector(".ph-plugin-rows");
+    if (!(rows instanceof HTMLDivElement)) throw new Error("expected rows wrapper");
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 100 });
+    Object.defineProperty(rows, "scrollHeight", { configurable: true, value: 120 });
+    act(() => {
+      for (const observer of resizeObservers) observer.flush();
+    });
+
+    const floating = screen.getByTestId("ph-plugin-loading-older-floating");
+    expect(floating.getAttribute("role")).toBe("status");
+    expect(floating.getAttribute("aria-live")).toBe("polite");
   });
 
   it("holds the older-page indicator through the loading grace window", async () => {

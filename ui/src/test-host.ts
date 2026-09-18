@@ -67,6 +67,7 @@ export class TestHostStore {
 
   private listeners = new Set<() => void>();
   private queryCache = new Map<string, { source: PluginSessionMessagesState; value: PluginSessionMessagesState }>();
+  private turnsCache = new Map<string, { source: PluginSessionTurnsState; value: PluginSessionTurnsState }>();
 
   constructor(messagesState: PluginSessionMessagesState, turnsState: PluginSessionTurnsState) {
     this.messagesState = messagesState;
@@ -74,28 +75,45 @@ export class TestHostStore {
   }
 
   /** The messages snapshot as the pinned facade would return it for `query`:
-   * `authorTypes` and `sort` are the query's observable shaping (the panel
-   * relies on `authorTypes` to exclude agent-authored messages and on `desc`
-   * for the newest-first order `derive` assumes), so the mock applies both
+   * the session scope, `authorTypes` and `sort` are the query's observable
+   * shaping (the panel relies on the session scope for isolation, on
+   * `authorTypes` to exclude agent-authored messages, and on `desc` for the
+   * newest-first order `derive` assumes), so the mock applies all three
    * rather than handing back every message in store order. Results are cached
    * per query and source snapshot, keeping the `useSyncExternalStore` snapshot
    * referentially stable. */
   messagesForQuery(query: PluginSessionMessagesQuery): PluginSessionMessagesState {
     const authorTypes = query.authorTypes ?? [];
     const sort = query.sort ?? "desc";
-    const key = `${sort}|${[...authorTypes].join("|")}`;
+    const key = `${query.sessionId ?? ""}|${sort}|${[...authorTypes].join("|")}`;
     const cached = this.queryCache.get(key);
     if (cached && cached.source === this.messagesState) return cached.value;
     const source = this.messagesState;
     const value: PluginSessionMessagesState = {
       ...source,
       messages: source.messages
+        .filter((message) => message.sessionId === query.sessionId)
         .filter(
           (message) => authorTypes.length === 0 || authorTypes.includes(message.authorType),
         )
         .sort((left, right) => compareMessages(left, right, sort)),
     };
     this.queryCache.set(key, { source, value });
+    return value;
+  }
+
+  /** The turns snapshot for one session, mirroring the facade's per-session
+   * read. */
+  turnsForSession(sessionId: string | null): PluginSessionTurnsState {
+    const key = sessionId ?? "";
+    const cached = this.turnsCache.get(key);
+    if (cached && cached.source === this.turnsState) return cached.value;
+    const source = this.turnsState;
+    const value: PluginSessionTurnsState = {
+      ...source,
+      turns: source.turns.filter((turn) => turn.sessionId === sessionId),
+    };
+    this.turnsCache.set(key, { source, value });
     return value;
   }
 
@@ -122,8 +140,6 @@ export class TestHostStore {
       this.listeners.delete(listener);
     };
   };
-
-  getTurnsSnapshot = (): PluginSessionTurnsState => this.turnsState;
 
   private emit(): void {
     for (const listener of this.listeners) listener();
@@ -193,8 +209,10 @@ export function createTestHost(
     conversation: {
       useSessionMessages: (query: PluginSessionMessagesQuery): PluginSessionMessagesState =>
         useStore(() => store.messagesForQuery(query)),
-      useSessionTurns: (_sessionId: string | null, _taskId?: string | null): PluginSessionTurnsState =>
-        useStore(store.getTurnsSnapshot),
+      useSessionTurns: (
+        sessionId: string | null,
+        _taskId?: string | null,
+      ): PluginSessionTurnsState => useStore(() => store.turnsForSession(sessionId)),
       useMessageFavorite: (_sessionId: string | null, messageId: string): boolean =>
         useStore(() => store.favorites.has(messageId)),
     },
