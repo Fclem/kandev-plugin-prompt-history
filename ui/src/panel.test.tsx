@@ -1243,6 +1243,30 @@ describe("PromptHistoryPanel", () => {
     expect(screen.getByTestId("ph-plugin-loading-older-floating")).toBeTruthy();
   });
 
+  it("holds the older-page indicator through the loading grace window", async () => {
+    const row = message({ id: "m", content: "page", promptIndex: 2 });
+    const { store } = renderPanel(
+      makeMessages([row], { hasMore: true, loadingMore: true }),
+      makeTurns([]),
+    );
+    expect(screen.getByTestId("ph-plugin-loading-older")).toBeTruthy();
+
+    // The page settles with more still to load: without the grace window the
+    // chained re-arm flashes the indicator off and straight back on.
+    act(() => {
+      store.setMessages(makeMessages([row], { hasMore: true, loadingMore: false }));
+    });
+    expect(screen.getByTestId("ph-plugin-loading-older")).toBeTruthy();
+
+    // LOADING_GRACE_MS is 400; real timers keep the observer and rAF mocks
+    // untouched.
+    await act(async () => {
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 450));
+    });
+    expect(screen.queryByTestId("ph-plugin-loading-older")).toBeNull();
+    expect(screen.queryByTestId("ph-plugin-loading-older-floating")).toBeNull();
+  });
+
   it("keeps committed rows visible on terminal removal with pagination stopped", () => {
     const single = message({ id: "m", content: "hi", createdAt: "2026-01-01T00:00:00Z" });
     const { store } = renderPanel(

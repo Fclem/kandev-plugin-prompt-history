@@ -131,10 +131,12 @@ Module layout:
   px and 44 px); phone-width+fine-pointer sizing is a control-sizing/
   mobile accessibility delta from the core's pointer-only implementation
   (the parity spec's role-based queries and 44 px tap-target
-  assertions depend on these; the rendered component suite asserts the
-  expand control's size across the three-context matrix). Deliberate
-  delta: the plugin also puts `role="status"` on the empty state; the
-  core's empty and passthrough states are plain divs with no role.
+  assertions depend on these). The matrix itself lives only in
+  `ui/plugin.css`: the parity spec's mobile run asserts the 44 px branch
+  through `boundingBox()`, and the 24 px fine-pointer branch has no
+  automated assertion. Deliberate delta: the plugin also puts
+  `role="status"` on the empty state; the core's empty and passthrough
+  states are plain divs with no role.
 - `ui/plugin.css` — the plugin-owned stylesheet, declared as
   `ui.styles: ["/ui/plugin.css"]` in the manifest. The bundle is built in a
   separate repository and imported at runtime from
@@ -181,15 +183,13 @@ Module layout:
   `react` package, and `test-host` passes that same module to `setHost`;
   only the esbuild production build aliases `react`/`react-jsx-runtime`
   to `react-shim.ts`) plus controlled
-  ResizeObserver/IntersectionObserver and fake timers; the suite covers
+  ResizeObserver/IntersectionObserver; the suite covers
   initial load, retry/recovery, in-flight pagination suppression,
   loading grace, expansion/40% cap, favorites/live updates, and terminal
   removal, plus indicator placement (non-scrollable content renders the
   indicator in flow, scrollable content renders it as the floating
-  indicator), older-page appends while the sentinel is active preserving
-  bottom anchoring, and the expand control's size across the three-context
-  matrix (desktop/tablet+fine pointer 24x24 px, desktop/tablet+coarse
-  pointer and phone-width+fine pointer each at least 44x44 px);
+  indicator) and older-page appends while the sentinel is active preserving
+  bottom anchoring;
   `panel.tsx` is also rendered by the
   throwaway parity spec for cross-repository production-artifact parity.
 - `ui/src/strings.ts` — translation catalogs (en plus every supported locale

@@ -242,14 +242,12 @@ target depends on `ui`.
   installed `react` package, and `test-host` passes that same module to
   `setHost`; only the esbuild production build aliases `react`/
   `react-jsx-runtime` to `react-shim.ts`) plus controlled
-  ResizeObserver/IntersectionObserver and fake timers - for initial load,
+  ResizeObserver/IntersectionObserver - for initial load,
   retry/recovery, in-flight pagination suppression, loading grace,
-  expansion/40% cap, favorites/live updates, terminal removal, indicator
+  expansion/40% cap, favorites/live updates, terminal removal, and indicator
   placement (in flow when not scrollable, floating when scrollable) with
-  older-page appends preserving bottom anchoring, and the expand control's
-  size across the three-context matrix (desktop/tablet+fine pointer
-  24x24 px, desktop/tablet+coarse pointer and phone-width+fine pointer
-  each at least 44x44 px); `panel.tsx` is also rendered by the
+  older-page appends preserving bottom anchoring;
+  `panel.tsx` is also rendered by the
   throwaway parity spec for
   cross-repository production-artifact parity).
   The panel
@@ -424,7 +422,7 @@ plugin-localized (AC-002.10).
 | AC-001.1 | Identity assertions: manifest `id`, `go.mod` module, Makefile `BIN` and its derived `PKG_OUT`, and UI registration id all read `kandev-plugin-prompt-history`, and the Makefile `VERSION` matches the manifest `version`; staged executables keep the platform names |
 | AC-001.2, .3, AC-003.3 | Manifest assertions in `server/` or `ui/` tests plus `make verify-package` (archive contents, checksums, staging leak check) |
 | AC-001.4 | Disposable-instance enable, disable, and re-enable smoke: the panel registration is removed without error and restored on re-enable |
-| AC-002.2, .3, .4, .6, .7, .9 | `ui/src/derive.test.ts` and `ui/src/panel.test.ts` in the plugin repo (vitest against `test-host`; `.ts` because the mirrored `vitest.config.ts` collects `src/**/*.test.ts`; `panel.test.ts` covers the pure `panel-state.ts` seam and the permanent rendered component tests - the rendered favorite distinction, the agent-sent indicator, the states, and controlled ResizeObserver/IntersectionObserver + fake-timer coverage for non-scrollable in-flow indicator placement, scrollable floating indicator placement, older-page append while the sentinel is active preserving bottom anchoring, and the expand control's size across the three-context matrix (desktop/tablet+fine pointer 24x24 px, desktop/tablet+coarse pointer and phone-width+fine pointer each at least 44x44 px)): ordering, ordinals, duration bounds, the turns-hydration gate, the agent-sent flag, state determination, `openMessage` outcome handling, and page-order preservation with identical `createdAt` values (ids seeded to contradict page order) |
+| AC-002.2, .3, .4, .6, .7, .9 | `ui/src/derive.test.ts` and `ui/src/panel.test.ts` in the plugin repo (vitest against `test-host`; `.ts` because the mirrored `vitest.config.ts` collects `src/**/*.test.ts`; `panel.test.ts` covers the pure `panel-state.ts` seam and the permanent rendered component tests - the rendered favorite distinction, the agent-sent indicator, the states, and controlled ResizeObserver/IntersectionObserver coverage for non-scrollable in-flow indicator placement, scrollable floating indicator placement, the loading grace window, and older-page append while the sentinel is active preserving bottom anchoring): ordering, ordinals, duration bounds, the turns-hydration gate, the agent-sent flag, state determination, `openMessage` outcome handling, and page-order preservation with identical `createdAt` values (ids seeded to contradict page order) |
 | AC-002.1, .5, .6, .7, .8 and AC-003.1 | Throwaway parity spec from Task 03 against the disposable instance (desktop + mobile), older-page auto-load oracled by `e2e/tests/task/prompt-history-auto-load.spec.ts` + `e2e/helpers/prompt-history-long-seed.ts` |
 | AC-003.2 | Both fixture E2E specs (`e2e/tests/plugins/prompt-history-plugin.spec.ts` and `e2e/tests/plugins/mobile-prompt-history-plugin.spec.ts`) plus a scoped post-cleanup worktree-cleanliness assertion using `git status --porcelain` for the fixture paths |
 | AC-002.10 | Pseudo-locale pass in the throwaway parity spec plus `ui/src/strings.test.ts` in the plugin repo (the catalog-shape unit test: asserts every catalog - `en`, `pt-pt`, `zh-cn`, `zh-tw`, `zh-hk`, `pseudo` - carries exactly the same key set) |

@@ -99,15 +99,13 @@ contracts.
   `react` package, and `test-host` passes that same module to `setHost`;
   only the esbuild production build aliases `react`/`react-jsx-runtime`
   to `react-shim.ts`) plus controlled
-  ResizeObserver/IntersectionObserver and fake timers; the suite covers
+  ResizeObserver/IntersectionObserver; the suite covers
   initial load, retry/recovery, in-flight pagination suppression,
   loading grace, expansion/40% cap, favorites/live updates, and terminal
   removal, plus indicator placement (non-scrollable content renders the
   indicator in flow, scrollable content renders it as the floating
-  indicator), older-page appends while the sentinel is active preserving
-  bottom anchoring, and the expand control's size across the three-context
-  matrix (desktop/tablet+fine pointer 24x24 px, desktop/tablet+coarse
-  pointer and phone-width+fine pointer each at least 44x44 px);
+  indicator), and older-page appends while the sentinel is active preserving
+  bottom anchoring;
   `panel.tsx` is also rendered by the
   throwaway parity spec for cross-repository production-artifact parity.
 - The panel registers with panel key `prompt-history` (layout id
@@ -132,8 +130,9 @@ contracts.
   phone-width+fine-pointer sizing is a control-sizing/mobile
   accessibility delta from the core's pointer-only implementation (the
   parity spec's role-based queries and 44 px tap-target assertions depend
-  on these; the rendered component suite asserts the expand control's
-  size across the three-context matrix); deliberate delta: the
+  on these; the matrix itself lives only in `ui/plugin.css`, with the parity
+  spec's mobile run asserting the 44 px branch and the 24 px fine-pointer
+  branch carrying no automated assertion); deliberate delta: the
   plugin also puts
   `role="status"` on the empty state (the core's empty and passthrough
   states are plain divs with no role).
@@ -236,10 +235,8 @@ contracts.
   suppression, loading grace, expansion/40% cap, favorites/live updates,
   terminal removal, indicator placement (in flow when not scrollable,
   floating when scrollable) with older-page appends preserving bottom
-  anchoring, and the expand control's size across the three-context matrix
-  (desktop/tablet+fine pointer 24x24 px, desktop/tablet+coarse pointer
-  and phone-width+fine pointer each at least 44x44 px), with controlled
-  observers and fake timers -
+  anchoring, with controlled
+  observers -
   are proven by the permanent rendered component tests in the plugin
   repo).
 - `make package-host` produces a bundle whose panel registration matches
