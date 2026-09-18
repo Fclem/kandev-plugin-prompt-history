@@ -579,6 +579,7 @@ function usePanelOlderPromptSentinel(opts: {
   const recheck = useCallback(() => {
     const state = stateRef.current;
     if (
+      disarmedRef.current ||
       !state.shouldPaginate ||
       state.messagesLoading ||
       requestInFlightRef.current ||
@@ -586,7 +587,6 @@ function usePanelOlderPromptSentinel(opts: {
     ) {
       return;
     }
-    disarmedRef.current = false;
     void fireLoad();
   }, [fireLoad, isCurrentGeometryEligible]);
 

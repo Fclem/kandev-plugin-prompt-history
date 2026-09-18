@@ -742,6 +742,39 @@ describe("PromptHistoryPanel", () => {
     expect(loadMore).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps reactive zero-progress pagination disarmed after loading settles", async () => {
+    const row = message({ id: "m", content: "page", promptIndex: 2 });
+    let store: TestHostStore | undefined;
+    const loadMore = vi.fn(async () => {
+      store?.setMessages(
+        makeMessages([row], { hasMore: true, loadingMore: true, loadMore }),
+      );
+      await Promise.resolve();
+      store?.setMessages(
+        makeMessages([row], { hasMore: true, loadingMore: false, loadMore }),
+      );
+      return 0;
+    });
+    ({ store } = renderPanel(
+      makeMessages([row], { hasMore: true, loadMore }),
+      makeTurns([]),
+    ));
+    const observer = MockIntersectionObserver.instances.at(-1);
+    if (!observer) throw new Error("expected pagination observer");
+
+    await act(async () => {
+      observer.fire();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+      await Promise.resolve();
+    });
+
+    expect(loadMore).toHaveBeenCalledTimes(1);
+  });
+
   it("resets a zero-progress disarm when the active session changes", async () => {
     const loadA = vi.fn().mockResolvedValue(0);
     const loadB = vi.fn().mockResolvedValue(1);
