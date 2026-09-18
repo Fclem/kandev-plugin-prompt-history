@@ -225,7 +225,9 @@ function PromptHistoryRow({
 }
 
 /** Tracks the panel root's height via ResizeObserver and returns 40% of it as
- * a CSS max-height string (falling back to "40vh") for expanded prompt rows. */
+ * a CSS max-height string (falling back to "40vh") for expanded prompt rows.
+ * Every render branch keeps the same root div at the same tree position, so
+ * React preserves this observed node while only its inner state changes. */
 function usePanelRowMaxHeight(rootRef: React.RefObject<HTMLDivElement | null>): string {
   const [maxHeight, setMaxHeight] = useState<string>("40vh");
   useLayoutEffect(() => {

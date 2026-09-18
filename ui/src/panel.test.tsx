@@ -316,6 +316,31 @@ describe("PromptHistoryPanel", () => {
     expect(screen.getByTestId("ph-plugin-loading-older-floating")).toBeTruthy();
   });
 
+  it("tracks expanded-row height after loading transitions to rows", () => {
+    const row = message({ id: "m", content: "long prompt", promptIndex: 2 });
+    const { store } = renderPanel(
+      makeMessages([], { loading: true }),
+      makeTurns([]),
+    );
+    const initialRoot = screen.getByTestId("ph-plugin-panel");
+    Object.defineProperty(initialRoot, "clientHeight", { configurable: true, value: 100 });
+    act(() => {
+      for (const observer of resizeObservers) observer.flush();
+      store.setMessages(makeMessages([row]));
+    });
+
+    const rowsRoot = screen.getByTestId("ph-plugin-panel");
+    Object.defineProperty(rowsRoot, "clientHeight", { configurable: true, value: 500 });
+    revealOverflowToggle("long prompt");
+    act(() => {
+      screen.getByTestId("ph-plugin-expand-0").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+
+    expect(screen.getByTestId("ph-plugin-expanded-box-0").style.maxHeight).toBe("200px");
+  });
+
   it("renders the empty state when there are no prompts", () => {
     renderPanel(makeMessages([]), makeTurns([]));
     expect(screen.getByText("No prompts yet.")).toBeTruthy();
