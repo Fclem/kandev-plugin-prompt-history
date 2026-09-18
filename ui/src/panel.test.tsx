@@ -1036,6 +1036,70 @@ describe("PromptHistoryPanel", () => {
     expect(currentLoad).toHaveBeenCalledTimes(1);
   });
 
+  it("replays a stale rejection once and disarms on a current-generation rejection", async () => {
+    let rejectStale: ((reason?: unknown) => void) | undefined;
+    const staleLoad = vi.fn(
+      () =>
+        new Promise<number>((_resolve, reject) => {
+          rejectStale = reject;
+        }),
+    );
+    const currentLoad = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("current request failed"))
+      .mockResolvedValueOnce(1);
+    const row = message({ id: "m", content: "same session", promptIndex: 2 });
+    const { store } = renderPanel(
+      makeMessages([row], { hasMore: true, loadMore: staleLoad }),
+      makeTurns([]),
+    );
+    const staleObserver = MockIntersectionObserver.instances.at(-1);
+    if (!staleObserver) throw new Error("expected stale observer");
+    await act(async () => {
+      staleObserver.fire();
+      await Promise.resolve();
+    });
+
+    act(() => {
+      store.setMessages(
+        makeMessages([row], { hasMore: true, loading: true, loadMore: currentLoad }),
+      );
+    });
+    act(() => {
+      store.setMessages(makeMessages([row], { hasMore: true, loadMore: currentLoad }));
+    });
+    const currentObserver = MockIntersectionObserver.instances.at(-1);
+    if (!currentObserver || currentObserver === staleObserver) {
+      throw new Error("expected rebound observer");
+    }
+    await act(async () => {
+      currentObserver.fire();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      rejectStale?.(new Error("stale request failed"));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(currentLoad).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+      currentObserver.fire();
+      await Promise.resolve();
+    });
+    expect(currentLoad).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      screen.getByTestId("ph-plugin-scroll").dispatchEvent(
+        new WheelEvent("wheel", { bubbles: true }),
+      );
+      await Promise.resolve();
+    });
+    expect(currentLoad).toHaveBeenCalledTimes(2);
+  });
+
   it("measures row scrollability without the inline loading indicator", () => {
     renderPanel(
       makeMessages(

@@ -310,8 +310,10 @@ function useLoadingGrace(sessionId: string | null, isLoadingMore: boolean): bool
 }
 
 /** Auto-loads older prompts while the sentinel is visible. Positive loads
- * re-arm immediately and preserve a user's bottom-pinned position; rejected or
- * zero-progress loads disarm until the sentinel exits or the user gestures. */
+ * re-arm immediately and preserve a user's bottom-pinned position. A
+ * current-generation rejected or zero-progress load disarms until sentinel
+ * exit or user gesture; a stale generation's outcome cannot govern the
+ * replacement view, so it hands off one eligible load to the current view. */
 function usePanelOlderPromptSentinel(opts: {
   scrollRef: React.RefObject<HTMLDivElement | null>;
   lifecycleKey: string | null;
