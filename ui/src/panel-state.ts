@@ -16,7 +16,8 @@ import type { PromptHistoryRow } from "./derive";
  *   pagination and live updates stop; zero committed rows render empty.
  * - `passthrough` - the session kind is passthrough: an unconditional empty
  *   state with no controls (the transcript the arrow would jump to does not
- *   exist).
+ *   exist). Checked before every other branch, so a removed passthrough
+ *   session still renders it rather than its committed rows.
  * - `loading` - the initial unhydrated load, no rows committed.
  * - `error` - the load failed with no rows committed: the retry surface. With
  *   committed rows the rows render without a retry affordance.
@@ -43,10 +44,10 @@ export function determinePanelState(
   messages: PluginSessionMessagesState,
   sessionKind: "managed" | "passthrough" | null,
 ): PanelState {
+  if (sessionKind === "passthrough") return { kind: "passthrough" };
   if (messages.removed) {
     return messages.messages.length > 0 ? { kind: "removed" } : { kind: "empty" };
   }
-  if (sessionKind === "passthrough") return { kind: "passthrough" };
   if (messages.messages.length > 0) {
     return { kind: "rows", loadingMore: messages.loadingMore && messages.hasMore };
   }

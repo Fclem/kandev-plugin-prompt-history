@@ -48,6 +48,15 @@ describe("determinePanelState", () => {
     expect(state).toEqual({ kind: "passthrough" });
   });
 
+  it("keeps passthrough unconditional when the session is also removed", () => {
+    expect(
+      determinePanelState(makeMessages([], { removed: true }), "passthrough"),
+    ).toEqual({ kind: "passthrough" });
+    expect(
+      determinePanelState(makeMessages(rows().messages, { removed: true }), "passthrough"),
+    ).toEqual({ kind: "passthrough" });
+  });
+
   it("returns loading for the initial load with no rows", () => {
     const state = determinePanelState(makeMessages([], { loading: true }), "managed");
     expect(state).toEqual({ kind: "loading" });
@@ -418,6 +427,9 @@ describe("PromptHistoryPanel", () => {
     expect(screen.getByText("#2")).toBeTruthy();
     expect(screen.getByText("#1")).toBeTruthy();
     expect(screen.getByTestId("ph-plugin-navigate-0").getAttribute("aria-label")).toBe("Prompt 2");
+    // Only the agent-sent row carries the glyph.
+    expect(document.querySelector('[data-message-id="newest"] .ph-plugin-agent-icon')).toBeTruthy();
+    expect(document.querySelector('[data-message-id="older"] .ph-plugin-agent-icon')).toBeNull();
     // Send time and duration. Both rows share the test host's fixed relative
     // time, so assert on the count rather than a single match.
     expect(screen.getAllByText("5 minutes ago").length).toBe(2);

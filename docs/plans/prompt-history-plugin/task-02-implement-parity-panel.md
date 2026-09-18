@@ -121,8 +121,12 @@ contracts.
   core's `min-h-11 md:min-h-0`) and a focusable full-row navigate
   `<button>` (the core's `min-h-11`), both supplied by `ui/plugin.css`,
   and
-  `aria-describedby` pointing at an `sr-only` row label whose text is the
-  row `aria-label`, and a real `<button>` expand control with
+  `aria-describedby` on the navigate `<button>` pointing at an `sr-only`
+  span that holds the row's prompt content, so the button keeps the row
+  label as its name and gains the prompt itself as its description
+  (deliberate a11y delta: the core puts the row label in that element and
+  describes its bubble, expand, and navigate controls with it), and a real
+  `<button>` expand control with
   `aria-expanded`, a catalog `aria-label`, and the three-context size
   matrix (desktop/tablet+fine pointer 24x24 px, desktop/tablet+coarse
   pointer and phone-width+fine pointer each at least 44x44 px) matching
@@ -323,7 +327,7 @@ make package-host
 - `kdlbs/kandev-plugin-prompt-history/ui/src/react-shim.ts`
 - `kdlbs/kandev-plugin-prompt-history/ui/src/test-host.ts`
 - `kdlbs/kandev-plugin-prompt-history/ui/src/derive.test.ts`
-- `kdlbs/kandev-plugin-prompt-history/ui/src/panel.test.ts`
+- `kdlbs/kandev-plugin-prompt-history/ui/src/panel.test.tsx`
 - `kdlbs/kandev-plugin-prompt-history/ui/src/strings.test.ts`
 - `kdlbs/kandev-plugin-prompt-history/ui/plugin.css`
 - `kdlbs/kandev-plugin-prompt-history/ui/build.mjs`
