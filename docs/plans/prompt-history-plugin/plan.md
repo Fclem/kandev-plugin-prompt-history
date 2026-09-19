@@ -444,6 +444,17 @@ rather than coverage that exists here; `Verification results` below stays
 other row is backed by committed tests or by CI/packaging mechanisms that run
 in this repository.
 
+One property is verified by measurement rather than by a committed test: the
+stylesheet's responsive control matrix (the 24 px fine-pointer control, the
+44 px coarse-pointer and phone-width targets, and the pointer-scoped row
+height that keeps the coarse-pointer control unclipped). The suite runs under
+jsdom, which neither applies `ui/plugin.css` nor evaluates media queries, and
+this repository carries no browser test runner - the browser runs belong to
+the Task 03 parity proof. The rules therefore keep their rationale in
+comments next to them in `ui/plugin.css`, the measured values are recorded in
+the system design, and any change to those rules must be re-measured in a
+browser (`ui/plugin.css` is the artifact under test, not a rendering of it).
+
 ## E2E tests
 
 One-shot, throwaway (not committed): `prompt-history-parity-check.spec.ts`
