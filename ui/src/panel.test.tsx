@@ -548,6 +548,8 @@ describe("PromptHistoryPanel", () => {
     // Ordinal and agent-sent flag.
     expect(screen.getByText("#2")).toBeTruthy();
     expect(screen.getByText("#1")).toBeTruthy();
+    // The ordinal is decorative: the row label already says "Prompt N".
+    expect(screen.getByText("#2").getAttribute("aria-hidden")).toBe("true");
     expect(screen.getByTestId("ph-plugin-navigate-0").getAttribute("aria-label")).toBe("Prompt 2");
     // Only the agent-sent row carries the glyph.
     expect(document.querySelector('[data-message-id="newest"] .ph-plugin-agent-icon')).toBeTruthy();
@@ -1296,6 +1298,10 @@ describe("PromptHistoryPanel", () => {
     expect(loadMore).not.toHaveBeenCalled();
 
     Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 100 });
+    // Restored just below the fold but inside the 200px preload band, the
+    // recheck must still preload.
+    scroller.getBoundingClientRect = () => rect(0, 100);
+    screen.getByTestId("ph-plugin-sentinel").getBoundingClientRect = () => rect(250, 270);
     await act(async () => {
       for (const resizeObserver of resizeObservers) resizeObserver.flush();
       await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));

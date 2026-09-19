@@ -50,7 +50,8 @@ capabilities:
 # ui/bundle.js and served by kandev from the extracted package at
 # GET /api/plugins/<id>/ui/bundle.js. ui.styles declares the plugin-owned
 # stylesheet the bundle depends on; the host's build never sees the bundle, so
-# the stylesheet owns every class it renders.
+# the stylesheet owns every ph-plugin-* class it renders (the row bubble also
+# reuses the host's global markdown-body / markdown-body-user classes).
 ui:
   bundle: "/ui/bundle.js"
   styles: ["/ui/plugin.css"]

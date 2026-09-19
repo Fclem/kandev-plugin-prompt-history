@@ -154,10 +154,12 @@ contracts.
   `ui.styles: ["/ui/plugin.css"]` in the manifest; the Task 01 placeholder
   is replaced here). The bundle is built in a separate repository and
   imported at runtime from `/api/plugins/{id}/bundle`, so the host's
-  build never sees it and the stylesheet owns every class it renders (the
-  host's `@source` globs in `apps/web/app/globals.css` cover only
-  `apps/web/components/**` and `apps/packages/ui/src/**`); namespaced class
-  names and kandev CSS custom properties for theme fidelity, mirroring
+  build never sees it and the stylesheet owns every `ph-plugin-*` class it
+  renders (the host's `@source` globs in `apps/web/app/globals.css` cover only
+  `apps/web/components/**` and `apps/packages/ui/src/**`); the row bubble also
+  reuses the host's global `markdown-body` / `markdown-body-user` classes for
+  transcript parity; namespaced class names and kandev CSS custom properties
+  for theme fidelity, mirroring
   `kandev-plugin-voice` (`ui/plugin.css` + `ui.styles`).
 - `ui/build.mjs` (esbuild, no bundled React, `react` and
   `react/jsx-runtime` aliased to `ui/src/react-shim.ts`, the

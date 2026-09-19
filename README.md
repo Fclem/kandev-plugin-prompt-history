@@ -31,10 +31,13 @@ instance via **Settings > Plugins**.
 - **A no-op backend** — `server/` embeds `pluginsdk.UnimplementedPlugin` and
   overrides no RPCs. The browser conversation facade needs no plugin backend
   logic, so the platform-matching binary is only the go-plugin handshake.
-- **A plugin-owned stylesheet** — `ui/plugin.css` owns every class the panel
-  renders (the bundle is built in a separate repository and imported at
-  runtime from `/api/plugins/{id}/bundle`, so the host's build never sees it
-  and no utility in the host's Tailwind sources applies to it).
+- **A plugin-owned stylesheet** — `ui/plugin.css` owns every `ph-plugin-*`
+  class the panel renders (the bundle is built in a separate repository and
+  imported at runtime from `/api/plugins/{id}/bundle`, so the host's build
+  never sees it and no utility in the host's Tailwind sources applies to it).
+  The row bubble deliberately also reuses the host's global `markdown-body`
+  and `markdown-body-user` classes, which the host's `globals.css` always
+  loads, so prompt text renders exactly as it does in the transcript.
 - **Localized copy** — every user-facing string resolves through the plugin
   translation catalog (`ui/src/strings.ts`) with an English fallback; catalogs
   exist for `en`, `pt-pt`, `zh-cn`, `zh-hk`, `zh-tw`, and `pseudo`.

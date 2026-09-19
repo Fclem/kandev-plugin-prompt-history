@@ -146,9 +146,13 @@ Module layout:
   separate repository and imported at runtime from
   `/api/plugins/{id}/bundle`, so the host's build never sees it and
   no utility in the host's Tailwind sources applies to it; the stylesheet
-  therefore owns every class it renders (the host's `@source` globs in
-  `apps/web/app/globals.css` cover only `apps/web/components/**` and
-  `apps/packages/ui/src/**`). It uses namespaced class names and kandev CSS
+  therefore owns every `ph-plugin-*` class it renders (the host's `@source`
+  globs in `apps/web/app/globals.css` cover only
+  `apps/web/components/**` and `apps/packages/ui/src/**`). The row bubble is
+  the one exception by design: it also carries the host's global
+  `markdown-body` and `markdown-body-user` classes, which the host always
+  loads, so prompt text renders exactly as it does in the transcript. It uses
+  namespaced class names and kandev CSS
   custom properties for theme fidelity, mirroring `kandev-plugin-voice`
   (`ui/plugin.css` + `ui.styles`).
 - `ui/src/derive.ts` — pure entry derivation from the Host DTOs: `#N`
