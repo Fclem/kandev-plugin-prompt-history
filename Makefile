@@ -88,9 +88,12 @@ package-host: ui
 	rm -rf $(STAGE)
 	@echo "Wrote $(PKG_OUT)"
 
-## Build and validate the all-platform archive: plugin-pack checks the manifest;
-## this additionally verifies checksums, expected binaries, and that development
-## files did not leak into the generated package.
+## Build the all-platform archive and check it: the archive members, the
+## checksums.txt digests, the five platform executables, and that development
+## files did not leak into the package. plugin-pack writes the archive and its
+## checksums, but it reads the manifest only on its host-only (-platform-only)
+## path, so the declared contract itself is checked separately by
+## `go test ./server/...` (server/manifest_contract_test.go).
 verify-package: package
 	@tmp="$$(mktemp -d)"; trap 'rm -rf "$$tmp"' EXIT; \
 		tar -xzf "$(PKG_OUT)" -C "$$tmp"; \
