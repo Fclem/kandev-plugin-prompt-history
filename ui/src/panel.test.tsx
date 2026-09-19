@@ -1600,30 +1600,42 @@ describe("PromptHistoryPanel", () => {
     }
   });
 
-  it("does not retry disarmed pagination from a role-button mention chip", async () => {
-    const row = message({
-      id: "m",
-      content: "@rolebutton",
-      promptIndex: 2,
-      createdAt: "2026-01-01T00:00:00Z",
-    });
-    const loadMore = vi.fn().mockResolvedValueOnce(0).mockResolvedValueOnce(1);
-    renderPanel(makeMessages([row], { hasMore: true, loadMore }), makeTurns([]));
-    const observer = MockIntersectionObserver.instances.at(-1);
-    if (!observer) throw new Error("expected pagination observer");
-    await act(async () => {
-      observer.fire();
-      await Promise.resolve();
-    });
-    expect(loadMore).toHaveBeenCalledTimes(1);
-
-    act(() => {
-      screen.getByTestId("ph-test-mention-role").dispatchEvent(
-        new Event("touchstart", { bubbles: true }),
+  it("does not retry disarmed pagination from a role-based or link mention", async () => {
+    const markers: readonly (readonly [string, string])[] = [
+      ["@rolebutton", "ph-test-mention-role"],
+      ["@link", "ph-test-mention-link"],
+      ["@rolelink", "ph-test-mention-role-link"],
+    ];
+    for (const [content, testId] of markers) {
+      const loadMore = vi.fn().mockResolvedValueOnce(0).mockResolvedValueOnce(1);
+      renderPanel(
+        makeMessages(
+          [
+            message({
+              id: "m",
+              content,
+              promptIndex: 2,
+              createdAt: "2026-01-01T00:00:00Z",
+            }),
+          ],
+          { hasMore: true, loadMore },
+        ),
+        makeTurns([]),
       );
-    });
+      const observer = MockIntersectionObserver.instances.at(-1);
+      if (!observer) throw new Error("expected pagination observer");
+      await act(async () => {
+        observer.fire();
+        await Promise.resolve();
+      });
+      expect(loadMore).toHaveBeenCalledTimes(1);
 
-    expect(loadMore).toHaveBeenCalledTimes(1);
+      act(() => {
+        screen.getByTestId(testId).dispatchEvent(new Event("touchstart", { bubbles: true }));
+      });
+      expect(loadMore).toHaveBeenCalledTimes(1);
+      cleanup();
+    }
   });
 
   it("resets a zero-progress disarm when the active session changes", async () => {

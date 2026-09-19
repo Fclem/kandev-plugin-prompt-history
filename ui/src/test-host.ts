@@ -147,6 +147,29 @@ export class TestHostStore {
   }
 }
 
+/** The nested interactive shapes the host's prompt renderer can emit inside a
+ * row: a mention chip as `<button>` on touch devices and `<span role="button">`
+ * on fine-pointer ones (including touchscreen laptops), and prompt links as a
+ * native anchor or a role-link span. The panel's nested-interactive guard must
+ * recognise every one of them. */
+const MENTION_TARGETS: Record<
+  string,
+  { tag: string; testId: string; props: Record<string, unknown> }
+> = {
+  "@interactive": { tag: "button", testId: "ph-test-mention", props: { type: "button" } },
+  "@rolebutton": {
+    tag: "span",
+    testId: "ph-test-mention-role",
+    props: { role: "button", tabIndex: 0 },
+  },
+  "@link": { tag: "a", testId: "ph-test-mention-link", props: { href: "#prompt-link" } },
+  "@rolelink": {
+    tag: "span",
+    testId: "ph-test-mention-role-link",
+    props: { role: "link", tabIndex: 0 },
+  },
+};
+
 function makeMessages(
   messages: readonly PluginConversationMessage[],
   overrides: Partial<PluginSessionMessagesState> = {},
@@ -231,16 +254,17 @@ export function createTestHost(
       }: {
         text: string;
         interactive?: boolean;
-      }) =>
-        React.createElement(
+      }) => {
+        const target = interactive ? MENTION_TARGETS[text] : undefined;
+        return React.createElement(
           "span",
           { "data-ph-mention": "true" },
-          interactive && text === "@interactive"
+          target
             ? React.createElement(
-                "button",
+                target.tag,
                 {
-                  type: "button",
-                  "data-testid": "ph-test-mention",
+                  ...target.props,
+                  "data-testid": target.testId,
                   onClick: () => {
                     store.mentionActivations += 1;
                   },
@@ -252,25 +276,9 @@ export function createTestHost(
                 },
                 text,
               )
-            : // The pinned host renders a mention chip as `<button>` only on
-              // touch devices; a fine-pointer host (including a touchscreen
-              // laptop) renders `<span role="button">`, which the panel's
-              // nested-interactive guard must also recognise.
-              interactive && text === "@rolebutton"
-              ? React.createElement(
-                  "span",
-                  {
-                    role: "button",
-                    tabIndex: 0,
-                    "data-testid": "ph-test-mention-role",
-                    onClick: () => {
-                      store.mentionActivations += 1;
-                    },
-                  },
-                  text,
-                )
-              : text,
-        ),
+            : text,
+        );
+      },
     },
     utils: {
       cn: (...inputs: unknown[]): string => inputs.filter(Boolean).join(" "),

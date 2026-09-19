@@ -432,6 +432,15 @@ plugin-localized (AC-002.10).
 | AC-002.10 | Pseudo-locale pass in the throwaway parity spec plus `ui/src/strings.test.ts` in the plugin repo (the catalog-shape unit test: asserts every catalog - `en`, `pt-pt`, `zh-cn`, `zh-tw`, `zh-hk`, `pseudo` - carries exactly the same key set) |
 | Go backend no-op contract | `server/plugin_test.go` (template-derived) |
 
+The AC-001.4, AC-002.1/.5/.6/.7/.8 and AC-003.1, AC-003.2, and AC-002.10 rows
+name the planned throwaway/disposable-instance runs from Task 03. Those specs
+live in the monorepo e2e harness, are not committed to this repository, and
+have not been run in this worktree, so those rows state the required evidence
+rather than coverage that exists here; `Verification results` below stays
+`Pending` until the disposable run happens and its results are recorded. Every
+other row is backed by committed tests or by CI/packaging mechanisms that run
+in this repository.
+
 ## E2E tests
 
 One-shot, throwaway (not committed): `prompt-history-parity-check.spec.ts`
