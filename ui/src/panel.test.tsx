@@ -869,6 +869,13 @@ describe("PromptHistoryPanel", () => {
 
     const stillExpandable = screen.getByTestId("ph-plugin-expand-0");
     expect(stillExpandable.getAttribute("aria-expanded")).toBe("true");
+    // The control is row-specific: its generic label is described by this
+    // row's own prompt, as the core's per-row label id does.
+    const expandDescriptionId = stillExpandable.getAttribute("aria-describedby");
+    expect(expandDescriptionId).toBeTruthy();
+    expect(document.getElementById(expandDescriptionId ?? "")?.textContent).toContain(
+      "a long prompt",
+    );
     act(() => {
       stillExpandable.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });

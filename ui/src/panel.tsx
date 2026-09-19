@@ -182,6 +182,7 @@ function PromptHistoryRow({
               className={`ph-plugin-expand${expanded ? " ph-plugin-expand-expanded" : ""}`}
               aria-expanded={expanded}
               aria-label={t(expanded ? "collapsePrompt" : "expandPrompt")}
+              aria-describedby={descriptionId}
               data-testid={`ph-plugin-expand-${index}`}
               onClick={onToggle}
             >

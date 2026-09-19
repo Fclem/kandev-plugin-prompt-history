@@ -103,7 +103,10 @@
   background: color-mix(in srgb, #eab308 10%, transparent);
 }
 
-@media (min-width: 768px) {
+/* The compact desktop row is a fine-pointer affordance: a coarse-pointer
+ * desktop/tablet keeps the 44px row so the 44px expand control is not clipped
+ * by the bubble's `overflow: hidden`. */
+@media (min-width: 768px) and (pointer: fine) {
   .ph-plugin-row-bubble {
     min-height: 0;
   }

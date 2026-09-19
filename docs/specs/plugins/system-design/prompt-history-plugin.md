@@ -154,7 +154,12 @@ Module layout:
   loads, so prompt text renders exactly as it does in the transcript. It uses
   namespaced class names and kandev CSS
   custom properties for theme fidelity, mirroring `kandev-plugin-voice`
-  (`ui/plugin.css` + `ui.styles`).
+  (`ui/plugin.css` + `ui.styles`). Row height follows the pointer: the
+  compact desktop row (`min-height: 0`) is scoped to
+  `(min-width: 768px) and (pointer: fine)`, so a coarse-pointer desktop or
+  tablet keeps the 44 px row and the 44 px expand control is not clipped by
+  the bubble's `overflow: hidden` (measured in Chromium at 1024 px: a 33 px
+  bubble left the top and bottom of the nominal 44 px target unhittable).
 - `ui/src/derive.ts` — pure entry derivation from the Host DTOs: `#N`
   ordinal from `promptIndex`, agent-sent flag from `senderTaskId`, and
   duration bounded by the earlier of turn completion and the
