@@ -1422,6 +1422,16 @@ describe("PromptHistoryPanel", () => {
       await Promise.resolve();
     });
     expect(loadMore).toHaveBeenCalledTimes(keys.length + 2);
+
+    // A pen tap has no touch fallback either, so it retries like a mouse
+    // click; only touch defers to its own handler.
+    await act(async () => {
+      const penDown = new MouseEvent("pointerdown", { bubbles: true });
+      Object.defineProperty(penDown, "pointerType", { value: "pen" });
+      scroller.dispatchEvent(penDown);
+      await Promise.resolve();
+    });
+    expect(loadMore).toHaveBeenCalledTimes(keys.length + 3);
   });
 
   it("issues one older-page load per touch tap on the scroller", async () => {
