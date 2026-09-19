@@ -74,18 +74,25 @@ export class TestHostStore {
     this.turnsState = turnsState;
   }
 
+  /** The task the panel is bound to, as the host's conversation-scope
+   * provider binds it. An omitted query `taskId` falls back to this, which is
+   * what the pinned facade's `resolveTaskId` does. */
+  taskScopeId: string | null = "t";
+
   /** The messages snapshot as the pinned facade would return it for `query`:
-   * the session scope, `authorTypes`, `sort` and `pageSize` are the query's
-   * observable shaping (the panel relies on the session scope for isolation,
-   * on `authorTypes` to exclude agent-authored messages, on `desc` for the
-   * newest-first order `derive` assumes, and on the page size for one page of
-   * prompts), so the mock applies all four rather than handing back every
-   * message in store order. Results are cached per query and source snapshot,
-   * keeping the `useSyncExternalStore` snapshot referentially stable. */
+   * the session scope, the task scope, `authorTypes`, `sort` and `pageSize`
+   * are the query's observable shaping (the panel relies on the two scopes for
+   * isolation, on `authorTypes` to exclude agent-authored messages, on `desc`
+   * for the newest-first order `derive` assumes, and on the page size for one
+   * page of prompts), so the mock applies all of them rather than handing back
+   * every message in store order. Results are cached per query and source
+   * snapshot, keeping the `useSyncExternalStore` snapshot referentially
+   * stable. */
   messagesForQuery(query: PluginSessionMessagesQuery): PluginSessionMessagesState {
     const authorTypes = query.authorTypes ?? [];
     const sort = query.sort ?? "desc";
-    const key = `${query.sessionId ?? ""}|${sort}|${query.pageSize ?? ""}|${[...authorTypes].join("|")}`;
+    const taskId = query.taskId === undefined ? this.taskScopeId : query.taskId;
+    const key = `${query.sessionId ?? ""}|${taskId ?? ""}|${sort}|${query.pageSize ?? ""}|${[...authorTypes].join("|")}`;
     const cached = this.queryCache.get(key);
     if (cached && cached.source === this.messagesState) return cached.value;
     const source = this.messagesState;
@@ -93,6 +100,7 @@ export class TestHostStore {
       ...source,
       messages: source.messages
         .filter((message) => message.sessionId === query.sessionId)
+        .filter((message) => taskId === null || message.taskId === taskId)
         .filter(
           (message) => authorTypes.length === 0 || authorTypes.includes(message.authorType),
         )

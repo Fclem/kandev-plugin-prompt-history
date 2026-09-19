@@ -272,6 +272,7 @@ function renderPanel(
     },
     ...overrides,
   };
+  store.taskScopeId = props.taskId;
   const rendered = render(<PromptHistoryPanel {...props} />);
   const scroller = screen.queryByTestId("ph-plugin-scroll");
   if (scroller) {
@@ -566,6 +567,27 @@ describe("PromptHistoryPanel", () => {
     expect(screen.queryByTestId("ph-plugin-navigate-1")).toBeNull();
     expect(document.querySelector('[data-message-id="kept"]')).toBeTruthy();
     expect(screen.getByTestId("ph-plugin-navigate-0")).toBeTruthy();
+  });
+
+  it("lists only the prompts of the panel's own task", () => {
+    const mine = message({
+      id: "mine",
+      taskId: "t",
+      content: "my task prompt",
+      promptIndex: 2,
+    });
+    const foreign = message({
+      id: "foreign",
+      taskId: "other-task",
+      sessionId: "s",
+      content: "foreign task prompt",
+      createdAt: "2026-01-01T00:00:05Z",
+      promptIndex: 3,
+    });
+    renderPanel(makeMessages([mine, foreign], { hasMore: false }), makeTurns([]));
+
+    expect(document.querySelector('[data-message-id="mine"]')).toBeTruthy();
+    expect(document.querySelector('[data-message-id="foreign"]')).toBeNull();
   });
 
   it("renders user-prompt rows with ordinals, agent flags, send time, and durations", () => {

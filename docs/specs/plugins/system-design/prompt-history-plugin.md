@@ -244,6 +244,12 @@ Module layout:
 - `ui/src/test-host.ts` — Host mock for the vitest suite: fake
   `useSessionMessages`/`useSessionTurns` state machines, `openMessage`
   outcomes, `host.ui.PromptMentionText`, and `host.utils.formatRelativeTime`.
+  The messages hook applies the query's observable shaping rather than handing
+  back the store unchanged: the session scope, the task scope (an omitted
+  `taskId` falls back to the panel's task, as the facade's `resolveTaskId`
+  does), `authorTypes`, `sort` and `pageSize`. A query that names another
+  session or task therefore drops those rows in the suite exactly as the
+  facade's scoped request would.
 
 ## Data and contracts
 
