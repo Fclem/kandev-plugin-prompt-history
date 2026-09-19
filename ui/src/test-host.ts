@@ -136,9 +136,10 @@ export class TestHostStore {
     this.emit();
   }
 
-  setFavorite(messageId: string, favorite: boolean): void {
-    if (favorite) this.favorites.add(messageId);
-    else this.favorites.delete(messageId);
+  setFavorite(sessionId: string | null, messageId: string, favorite: boolean): void {
+    const key = `${sessionId ?? ""}:${messageId}`;
+    if (favorite) this.favorites.add(key);
+    else this.favorites.delete(key);
     this.emit();
   }
 
@@ -245,8 +246,8 @@ export function createTestHost(
         sessionId: string | null,
         _taskId?: string | null,
       ): PluginSessionTurnsState => useStore(() => store.turnsForSession(sessionId)),
-      useMessageFavorite: (_sessionId: string | null, messageId: string): boolean =>
-        useStore(() => store.favorites.has(messageId)),
+      useMessageFavorite: (sessionId: string | null, messageId: string): boolean =>
+        useStore(() => store.favorites.has(`${sessionId ?? ""}:${messageId}`)),
     },
     i18n: {
       get locale() {
@@ -290,7 +291,9 @@ export function createTestHost(
     },
     utils: {
       cn: (...inputs: unknown[]): string => inputs.filter(Boolean).join(" "),
-      formatRelativeTime: (_value: string | number | Date): string => "5 minutes ago",
+      // Input-derived so a caller passing the wrong timestamp is observable:
+      // the pinned host formats whatever it is given.
+      formatRelativeTime: (value: string | number | Date): string => `relative:${String(value)}`,
     },
     useResponsiveBreakpoint: () => ({ isMobile: false }),
     theme: "light" as const,

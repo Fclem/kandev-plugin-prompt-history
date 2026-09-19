@@ -692,9 +692,13 @@ describe("PromptHistoryPanel", () => {
     // Only the agent-sent row carries the glyph.
     expect(document.querySelector('[data-message-id="newest"] .ph-plugin-agent-icon')).toBeTruthy();
     expect(document.querySelector('[data-message-id="older"] .ph-plugin-agent-icon')).toBeNull();
-    // Send time and duration. Both rows share the test host's fixed relative
-    // time, so assert on the count rather than a single match.
-    expect(screen.getAllByText("5 minutes ago").length).toBe(2);
+    // Send time and duration.
+    // The displayed text and its title both come from the prompt's send time.
+    expect(screen.getByText(`relative:${newest.createdAt}`)).toBeTruthy();
+    expect(screen.getByText(`relative:${older.createdAt}`)).toBeTruthy();
+    expect(
+      document.querySelector(`time[dateTime="${newest.createdAt}"]`)?.getAttribute("title"),
+    ).toBe(`relative:${newest.createdAt}`);
     expect(screen.getByText("3s")).toBeTruthy();
     expect(screen.getByText("1s")).toBeTruthy();
   });
@@ -1229,7 +1233,7 @@ describe("PromptHistoryPanel", () => {
     const bubble = document.querySelector('[data-message-id="m"]');
     expect(bubble?.className).not.toContain("ph-plugin-favorite");
     act(() => {
-      store.setFavorite("m", true);
+      store.setFavorite("s", "m", true);
     });
     expect(document.querySelector('[data-message-id="m"]')?.className).toContain("ph-plugin-favorite");
   });

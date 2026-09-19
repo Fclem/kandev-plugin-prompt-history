@@ -249,7 +249,10 @@ Module layout:
   `taskId` falls back to the panel's task, as the facade's `resolveTaskId`
   does), `authorTypes`, `sort` and `pageSize`. A query that names another
   session or task therefore drops those rows in the suite exactly as the
-  facade's scoped request would.
+  facade's scoped request would. Favorites are stored and queried per session,
+  matching the facade's `bySession[sessionId][messageId]` lookup, and the
+  relative-time formatter derives its answer from the value it is given, so
+  the panel's arguments are observable rather than assumed.
 
 ## Data and contracts
 
