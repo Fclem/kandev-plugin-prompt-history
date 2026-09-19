@@ -521,6 +521,53 @@ describe("PromptHistoryPanel", () => {
     expect(retry).not.toHaveBeenCalled();
   });
 
+  it("keeps committed rows and omits the retry control when an error accompanies them", () => {
+    const single = message({ id: "m", content: "page", promptIndex: 2 });
+    renderPanel(
+      makeMessages([single], {
+        hasMore: true,
+        error: { code: "upstream_failure", message: "x", retryable: true },
+      }),
+      makeTurns([]),
+    );
+
+    // The rows state owns the view while rows exist, whatever the query error;
+    // the retry surface belongs to the zero-rows error state alone.
+    expect(document.querySelector('[data-message-id="m"]')).toBeTruthy();
+    expect(screen.getByTestId("ph-plugin-sentinel")).toBeTruthy();
+    expect(screen.queryByTestId("ph-plugin-retry")).toBeNull();
+  });
+
+  it("drops a prompt the facade deletes live", () => {
+    const kept = message({
+      id: "kept",
+      content: "kept prompt",
+      createdAt: "2026-01-01T00:00:05Z",
+      promptIndex: 2,
+    });
+    const removed = message({
+      id: "removed",
+      content: "deleted prompt",
+      createdAt: "2026-01-01T00:00:00Z",
+      promptIndex: 1,
+    });
+    const { store } = renderPanel(
+      makeMessages([kept, removed], { hasMore: false }),
+      makeTurns([]),
+    );
+    expect(document.querySelector('[data-message-id="removed"]')).toBeTruthy();
+
+    act(() => {
+      store.setMessages(makeMessages([kept], { hasMore: false }));
+    });
+
+    expect(document.querySelector('[data-message-id="removed"]')).toBeNull();
+    expect(screen.queryByText("deleted prompt")).toBeNull();
+    expect(screen.queryByTestId("ph-plugin-navigate-1")).toBeNull();
+    expect(document.querySelector('[data-message-id="kept"]')).toBeTruthy();
+    expect(screen.getByTestId("ph-plugin-navigate-0")).toBeTruthy();
+  });
+
   it("renders user-prompt rows with ordinals, agent flags, send time, and durations", () => {
     const newest = message({
       id: "newest",
