@@ -212,7 +212,16 @@ Module layout:
   AC-002.10 requires all six), at most 1000 messages per locale and 4096
   characters
   per message; a violation throws at `initialize` and aborts every
-  registration.
+  registration. Except for the panel title, every value matches the pinned
+  core `task.json` catalogs character-for-character in all six locales. The
+  title is a recorded delta: `panelTitle` reads `"Prompt History"` (canonical
+  capitalisation, matching the core layout constant that names the saved
+  panel), where the core's localized `task:promptHistory` copy reads
+  `"Prompt history"`, and the plugin's pseudo title uses different glyphs for
+  `h`/`i` than the host's pseudo generator emits. The title is display-only
+  (the panel's layout identity is its `plugin:<id>:prompt-history` key), so
+  the difference shows only as casing in the desktop "+" menu and the mobile
+  Panels picker.
 - `ui/src/host.ts` — re-exports the `@kandev/plugin-sdk` types (the
   `file:../../kdlbs-kandev/apps/packages/plugin-sdk` dependency in
   `ui/package.json`) instead of restating the contract, so
@@ -321,10 +330,11 @@ The panel mirrors the core's pagination and reveal behavior:
   `error`, and leaves `loadMore` usable (its guard is scope, `removed`,
   `hasMore` and the cursor; the loader's early `throw` is the query-level
   `taskId` error, not this one). So with rows on screen the panel recovers by
-  retrying the continuation through its existing paths - a user gesture, a
-  sentinel exit and re-entry, or the post-commit geometry recheck - and the
-  facade clears `error` on the successful page. Only the zero-rows case needs
-  the visible retry surface.
+  retrying the continuation through a user gesture or an observed sentinel
+  exit and re-entry (which clears the disarm), and the facade clears `error`
+  on the successful page. The post-commit geometry recheck does not recover
+  it: a rejected page sets the disarm, and `recheck()` bails while disarmed.
+  Only the zero-rows case needs the visible retry surface.
 - `removed` is the Host facade's terminal state, not a parity-reference
   state: the core panel unmounts with the task, so the plugin's "rows stay
   visible, `hasMore` false" behavior is the accepted delta. On `removed`,

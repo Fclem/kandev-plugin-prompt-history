@@ -1190,6 +1190,45 @@ describe("PromptHistoryPanel", () => {
     expect(scroller.scrollTop).toBe(0);
   });
 
+  it("keeps the user's scroll-away during a queued bottom-pin restore", async () => {
+    const loadMore = vi.fn().mockResolvedValue(1);
+    renderPanel(
+      makeMessages(
+        [message({ id: "m", content: "page", promptIndex: 5 })],
+        { hasMore: true, loadMore },
+      ),
+      makeTurns([]),
+    );
+    const scroller = screen.getByTestId("ph-plugin-scroll");
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 100 });
+    Object.defineProperty(scroller, "scrollHeight", {
+      configurable: true,
+      get: () => 200,
+    });
+    Object.defineProperty(scroller, "scrollTop", { configurable: true, value: 100, writable: true });
+    const observer = MockIntersectionObserver.instances.at(-1);
+    if (!observer) throw new Error("expected pagination observer");
+
+    await act(async () => {
+      observer.fire();
+      await Promise.resolve();
+    });
+    expect(loadMore).toHaveBeenCalledTimes(1);
+
+    // The committed page has not grown the scroll height yet, so the pin is
+    // still pending when the user scrolls away; the queued frame must honour
+    // that instead of yanking them back to the bottom.
+    act(() => {
+      scroller.scrollTop = 0;
+      scroller.dispatchEvent(new Event("scroll"));
+    });
+    await act(async () => {
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    });
+
+    expect(scroller.scrollTop).toBe(0);
+  });
+
   it("keeps a bottom-pinned user at the bottom when the final page removes the sentinel", async () => {
     let scrollHeight = 200;
     let store: TestHostStore | undefined;
@@ -1935,6 +1974,9 @@ describe("PromptHistoryPanel", () => {
       for (const observer of resizeObservers) observer.flush();
     });
     expect(screen.getByTestId("ph-plugin-loading-older-floating")).toBeTruthy();
+    // Exactly one indicator: the in-flow copy must not survive inside the
+    // measured content flow once the content scrolls.
+    expect(screen.queryByTestId("ph-plugin-loading-older")).toBeNull();
   });
 
   it("subtracts the scroller padding when measuring scrollability", () => {
