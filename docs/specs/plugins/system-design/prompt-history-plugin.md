@@ -327,9 +327,12 @@ The panel mirrors the core's pagination and reveal behavior:
 
 - The messages hook's `error` renders the retry surface only when no rows
   are committed (mirroring the core `fetchFailed && entries.length === 0`
-  condition); with committed rows, the rows render without a retry
-  affordance. `retry()` re-runs the Host facade's recovery. The turns hook's
-  `error` is not surfaced.
+  condition) and only when the error is retryable: the facade's `retry()`
+  returns early unless `error.retryable` (`unauthenticated` and
+  `invalid_query` are explicitly not), so a non-retryable failure renders its
+  status without a control that could not do anything. With committed rows,
+  the rows render without a retry affordance. `retry()` re-runs the Host
+  facade's recovery. The turns hook's `error` is not surfaced.
 - A *continuation* failure is not terminal: the pinned facade keeps the
   committed rows, the continuation cursor and `hasMore`, stores a retryable
   `error`, and leaves `loadMore` usable (its guard is scope, `removed`,

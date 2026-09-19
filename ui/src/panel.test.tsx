@@ -505,6 +505,22 @@ describe("PromptHistoryPanel", () => {
     expect(retry).toHaveBeenCalled();
   });
 
+  it("offers no retry control for an error the facade cannot retry", () => {
+    const retry = vi.fn();
+    renderPanel(
+      makeMessages([], {
+        error: { code: "unauthenticated", message: "x", retryable: false },
+        retry,
+      }),
+      makeTurns([]),
+    );
+
+    const error = screen.getByText("Error");
+    expect(error.getAttribute("role")).toBe("status");
+    expect(screen.queryByTestId("ph-plugin-retry")).toBeNull();
+    expect(retry).not.toHaveBeenCalled();
+  });
+
   it("renders user-prompt rows with ordinals, agent flags, send time, and durations", () => {
     const newest = message({
       id: "newest",

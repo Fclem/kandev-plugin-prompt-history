@@ -772,14 +772,19 @@ export function PromptHistoryPanel(props: PluginTaskPanelProps) {
       <div ref={rootRef} className="ph-plugin-panel" data-testid="ph-plugin-panel">
         <div role="status" aria-live="polite" className="ph-plugin-error">
           {t("error")}
-          <button
-            type="button"
-            className="ph-plugin-retry"
-            data-testid="ph-plugin-retry"
-            onClick={() => messagesState.retry()}
-          >
-            {t("retry")}
-          </button>
+          {/* The facade's retry() no-ops unless the error is retryable
+              (unauthenticated / invalid_query are not), so offering the
+              control there would be a dead button. */}
+          {messagesState.error?.retryable && (
+            <button
+              type="button"
+              className="ph-plugin-retry"
+              data-testid="ph-plugin-retry"
+              onClick={() => messagesState.retry()}
+            >
+              {t("retry")}
+            </button>
+          )}
         </div>
       </div>
     );
