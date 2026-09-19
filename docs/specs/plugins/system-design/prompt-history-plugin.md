@@ -122,8 +122,12 @@ Module layout:
   renders it on every loading render), the row bubble's 44 px mobile
   minimum with its desktop release (the core's `min-h-11 md:min-h-0`)
   and a focusable full-row navigate `<button>` (the core's `min-h-11`),
-  both supplied by `ui/plugin.css`, and `aria-describedby` pointing at an
-  `sr-only` row label whose text is the row `aria-label`, and a real
+  both supplied by `ui/plugin.css`, and `aria-describedby` on the navigate
+  `<button>` pointing at an `sr-only` span that holds the row's prompt
+  content, so the button keeps the row label as its name and gains the
+  prompt itself as its description (deliberate a11y delta: the core puts
+  the row label in that element and describes its bubble, expand, and
+  navigate controls with it), and a real
   `<button>` expand control with `aria-expanded`, a catalog `aria-label`,
   and the three-context size matrix (desktop/tablet+fine pointer 24x24
   px, desktop/tablet+coarse pointer and phone-width+fine pointer each at
@@ -131,18 +135,24 @@ Module layout:
   px and 44 px); phone-width+fine-pointer sizing is a control-sizing/
   mobile accessibility delta from the core's pointer-only implementation
   (the parity spec's role-based queries and 44 px tap-target
-  assertions depend on these; the rendered component suite asserts the
-  expand control's size across the three-context matrix). Deliberate
-  delta: the plugin also puts `role="status"` on the empty state; the
-  core's empty and passthrough states are plain divs with no role.
+  assertions depend on these). The matrix itself lives only in
+  `ui/plugin.css`: the parity spec's mobile run asserts the 44 px branch
+  through `boundingBox()`, and the 24 px fine-pointer branch has no
+  automated assertion. Deliberate delta: the plugin also puts
+  `role="status"` on the empty state; the core's empty and passthrough
+  states are plain divs with no role.
 - `ui/plugin.css` — the plugin-owned stylesheet, declared as
   `ui.styles: ["/ui/plugin.css"]` in the manifest. The bundle is built in a
   separate repository and imported at runtime from
   `/api/plugins/{id}/bundle`, so the host's build never sees it and
   no utility in the host's Tailwind sources applies to it; the stylesheet
-  therefore owns every class it renders (the host's `@source` globs in
-  `apps/web/app/globals.css` cover only `apps/web/components/**` and
-  `apps/packages/ui/src/**`). It uses namespaced class names and kandev CSS
+  therefore owns every `ph-plugin-*` class it renders (the host's `@source`
+  globs in `apps/web/app/globals.css` cover only
+  `apps/web/components/**` and `apps/packages/ui/src/**`). The row bubble is
+  the one exception by design: it also carries the host's global
+  `markdown-body` and `markdown-body-user` classes, which the host always
+  loads, so prompt text renders exactly as it does in the transcript. It uses
+  namespaced class names and kandev CSS
   custom properties for theme fidelity, mirroring `kandev-plugin-voice`
   (`ui/plugin.css` + `ui.styles`).
 - `ui/src/derive.ts` — pure entry derivation from the Host DTOs: `#N`
@@ -181,15 +191,13 @@ Module layout:
   `react` package, and `test-host` passes that same module to `setHost`;
   only the esbuild production build aliases `react`/`react-jsx-runtime`
   to `react-shim.ts`) plus controlled
-  ResizeObserver/IntersectionObserver and fake timers; the suite covers
+  ResizeObserver/IntersectionObserver; the suite covers
   initial load, retry/recovery, in-flight pagination suppression,
   loading grace, expansion/40% cap, favorites/live updates, and terminal
   removal, plus indicator placement (non-scrollable content renders the
   indicator in flow, scrollable content renders it as the floating
-  indicator), older-page appends while the sentinel is active preserving
-  bottom anchoring, and the expand control's size across the three-context
-  matrix (desktop/tablet+fine pointer 24x24 px, desktop/tablet+coarse
-  pointer and phone-width+fine pointer each at least 44x44 px);
+  indicator) and older-page appends while the sentinel is active preserving
+  bottom anchoring;
   `panel.tsx` is also rendered by the
   throwaway parity spec for cross-repository production-artifact parity.
 - `ui/src/strings.ts` — translation catalogs (en plus every supported locale

@@ -182,7 +182,7 @@ vitest tests against a `test-host` mock. The Makefile `test` target
 becomes `test-backend test-ui` (for local runs; `ci.yml`'s `Test` step
 runs `make test-backend` instead, mirroring `kandev-plugin-voice`'s
 `make test-go`, so the UI suite runs exactly once, in its own step after typechecking). CI
-gains the `kandev-plugin-voice` UI steps - `Set up Node` (node 24),
+gains the `kandev-plugin-voice` UI steps - `Set up Node` (node 22,
 `Set up pnpm` (v10), and `make ui-install` - anchored to each
 workflow's verification step, not to packaging (all three workflows
 have no Node steps after Task 01's strip): `ci.yml` gains them
@@ -242,14 +242,12 @@ target depends on `ui`.
   installed `react` package, and `test-host` passes that same module to
   `setHost`; only the esbuild production build aliases `react`/
   `react-jsx-runtime` to `react-shim.ts`) plus controlled
-  ResizeObserver/IntersectionObserver and fake timers - for initial load,
+  ResizeObserver/IntersectionObserver - for initial load,
   retry/recovery, in-flight pagination suppression, loading grace,
-  expansion/40% cap, favorites/live updates, terminal removal, indicator
+  expansion/40% cap, favorites/live updates, terminal removal, and indicator
   placement (in flow when not scrollable, floating when scrollable) with
-  older-page appends preserving bottom anchoring, and the expand control's
-  size across the three-context matrix (desktop/tablet+fine pointer
-  24x24 px, desktop/tablet+coarse pointer and phone-width+fine pointer
-  each at least 44x44 px); `panel.tsx` is also rendered by the
+  older-page appends preserving bottom anchoring;
+  `panel.tsx` is also rendered by the
   throwaway parity spec for
   cross-repository production-artifact parity).
   The panel
@@ -266,8 +264,12 @@ target depends on `ui`.
   renders it on every loading render), the row bubble's 44 px mobile
   minimum with its desktop release (the core's `min-h-11 md:min-h-0`)
   and a focusable full-row navigate `<button>` (the core's `min-h-11`),
-  both supplied by `ui/plugin.css`, and `aria-describedby` pointing at an
-  `sr-only` row label whose text is the row `aria-label`, and a real
+  both supplied by `ui/plugin.css`, and `aria-describedby` on the navigate
+  `<button>` pointing at an `sr-only` span that holds the row's prompt
+  content, so the button keeps the row label as its name and gains the
+  prompt itself as its description (deliberate a11y delta: the core puts
+  the row label in that element and describes its bubble, expand, and
+  navigate controls with it), and a real
   `<button>` expand control with `aria-expanded`, a catalog `aria-label`,
   and the three-context size matrix (desktop/tablet+fine pointer 24x24
   px, desktop/tablet+coarse pointer and phone-width+fine pointer each at
@@ -281,9 +283,12 @@ target depends on `ui`.
   `ui.styles: ["/ui/plugin.css"]` in the Task 01 manifest; the Task 01
   placeholder is replaced here). The bundle is built in a separate
   repository and imported at runtime from `/api/plugins/{id}/bundle`,
-  so the host's build never sees it and the stylesheet owns every class it
+  so the host's build never sees it and the stylesheet owns every
+  `ph-plugin-*` class it
   renders (the host's `@source` globs in `apps/web/app/globals.css` cover
-  only `apps/web/components/**` and `apps/packages/ui/src/**`); namespaced
+  only `apps/web/components/**` and `apps/packages/ui/src/**`); the row bubble
+  also reuses the host's global `markdown-body` / `markdown-body-user` classes
+  for transcript parity; namespaced
   class names and kandev CSS custom properties for theme fidelity,
   mirroring `kandev-plugin-voice` (`ui/plugin.css` + `ui.styles`).
 - `ui/src/host.ts`: re-exports the `@kandev/plugin-sdk` types (the
@@ -421,14 +426,23 @@ plugin-localized (AC-002.10).
 
 | Criterion | Evidence |
 | --- | --- |
-| AC-001.1 | Identity assertions: manifest `id`, `go.mod` module, Makefile `BIN` and its derived `PKG_OUT`, and UI registration id all read `kandev-plugin-prompt-history`, and the Makefile `VERSION` matches the manifest `version`; staged executables keep the platform names |
-| AC-001.2, .3, AC-003.3 | Manifest assertions in `server/` or `ui/` tests plus `make verify-package` (archive contents, checksums, staging leak check) |
+| AC-001.1 | The UI half is asserted in `ui/src/index.test.ts` (the plugin id registered on the host global and the `prompt-history` panel registration). The remaining identity agreement is enforced outside the test suite: `release.yml` reads the manifest `version` and the Makefile `VERSION` and fails when they disagree, then rewrites both; `make verify-package` has plugin-pack validate the manifest while packing and then requires each executable named in `manifest.yaml`'s platform list (`plugin-linux-amd64`, `plugin-linux-arm64`, `plugin-darwin-amd64`, `plugin-darwin-arm64`, `plugin-windows-amd64.exe`) to exist in the archive |
+| AC-001.2, .3, AC-003.3 | `make verify-package` (run by `build.yml`): plugin-pack validates the manifest as it packs, then the target verifies the archive contents, the `checksums.txt` digests, and that development files (`ui/src`, `ui/node_modules`, `ui/package.json`) did not leak into the package |
 | AC-001.4 | Disposable-instance enable, disable, and re-enable smoke: the panel registration is removed without error and restored on re-enable |
-| AC-002.2, .3, .4, .6, .7, .9 | `ui/src/derive.test.ts` and `ui/src/panel.test.ts` in the plugin repo (vitest against `test-host`; `.ts` because the mirrored `vitest.config.ts` collects `src/**/*.test.ts`; `panel.test.ts` covers the pure `panel-state.ts` seam and the permanent rendered component tests - the rendered favorite distinction, the agent-sent indicator, the states, and controlled ResizeObserver/IntersectionObserver + fake-timer coverage for non-scrollable in-flow indicator placement, scrollable floating indicator placement, older-page append while the sentinel is active preserving bottom anchoring, and the expand control's size across the three-context matrix (desktop/tablet+fine pointer 24x24 px, desktop/tablet+coarse pointer and phone-width+fine pointer each at least 44x44 px)): ordering, ordinals, duration bounds, the turns-hydration gate, the agent-sent flag, state determination, `openMessage` outcome handling, and page-order preservation with identical `createdAt` values (ids seeded to contradict page order) |
+| AC-002.2, .3, .4, .6, .7, .9 | `ui/src/derive.test.ts` and `ui/src/panel.test.tsx` in the plugin repo (vitest against `test-host`; the mirrored `vitest.config.ts` collects `src/**/*.test.ts` and `src/**/*.test.tsx`; `panel.test.tsx` covers the pure `panel-state.ts` seam and the permanent rendered component tests - the rendered favorite distinction, the agent-sent indicator, the states, and controlled ResizeObserver/IntersectionObserver coverage for non-scrollable in-flow indicator placement, scrollable floating indicator placement, the loading grace window, and older-page append while the sentinel is active preserving bottom anchoring): ordering, ordinals, duration bounds, the turns-hydration gate, the agent-sent flag, state determination, `openMessage` outcome handling, and page-order preservation with identical `createdAt` values (ids seeded to contradict page order) |
 | AC-002.1, .5, .6, .7, .8 and AC-003.1 | Throwaway parity spec from Task 03 against the disposable instance (desktop + mobile), older-page auto-load oracled by `e2e/tests/task/prompt-history-auto-load.spec.ts` + `e2e/helpers/prompt-history-long-seed.ts` |
 | AC-003.2 | Both fixture E2E specs (`e2e/tests/plugins/prompt-history-plugin.spec.ts` and `e2e/tests/plugins/mobile-prompt-history-plugin.spec.ts`) plus a scoped post-cleanup worktree-cleanliness assertion using `git status --porcelain` for the fixture paths |
 | AC-002.10 | Pseudo-locale pass in the throwaway parity spec plus `ui/src/strings.test.ts` in the plugin repo (the catalog-shape unit test: asserts every catalog - `en`, `pt-pt`, `zh-cn`, `zh-tw`, `zh-hk`, `pseudo` - carries exactly the same key set) |
 | Go backend no-op contract | `server/plugin_test.go` (template-derived) |
+
+The AC-001.4, AC-002.1/.5/.6/.7/.8 and AC-003.1, AC-003.2, and AC-002.10 rows
+name the planned throwaway/disposable-instance runs from Task 03. Those specs
+live in the monorepo e2e harness, are not committed to this repository, and
+have not been run in this worktree, so those rows state the required evidence
+rather than coverage that exists here; `Verification results` below stays
+`Pending` until the disposable run happens and its results are recorded. Every
+other row is backed by committed tests or by CI/packaging mechanisms that run
+in this repository.
 
 ## E2E tests
 

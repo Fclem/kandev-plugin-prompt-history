@@ -99,15 +99,13 @@ contracts.
   `react` package, and `test-host` passes that same module to `setHost`;
   only the esbuild production build aliases `react`/`react-jsx-runtime`
   to `react-shim.ts`) plus controlled
-  ResizeObserver/IntersectionObserver and fake timers; the suite covers
+  ResizeObserver/IntersectionObserver; the suite covers
   initial load, retry/recovery, in-flight pagination suppression,
   loading grace, expansion/40% cap, favorites/live updates, and terminal
   removal, plus indicator placement (non-scrollable content renders the
   indicator in flow, scrollable content renders it as the floating
-  indicator), older-page appends while the sentinel is active preserving
-  bottom anchoring, and the expand control's size across the three-context
-  matrix (desktop/tablet+fine pointer 24x24 px, desktop/tablet+coarse
-  pointer and phone-width+fine pointer each at least 44x44 px);
+  indicator), and older-page appends while the sentinel is active preserving
+  bottom anchoring;
   `panel.tsx` is also rendered by the
   throwaway parity spec for cross-repository production-artifact parity.
 - The panel registers with panel key `prompt-history` (layout id
@@ -123,8 +121,12 @@ contracts.
   core's `min-h-11 md:min-h-0`) and a focusable full-row navigate
   `<button>` (the core's `min-h-11`), both supplied by `ui/plugin.css`,
   and
-  `aria-describedby` pointing at an `sr-only` row label whose text is the
-  row `aria-label`, and a real `<button>` expand control with
+  `aria-describedby` on the navigate `<button>` pointing at an `sr-only`
+  span that holds the row's prompt content, so the button keeps the row
+  label as its name and gains the prompt itself as its description
+  (deliberate a11y delta: the core puts the row label in that element and
+  describes its bubble, expand, and navigate controls with it), and a real
+  `<button>` expand control with
   `aria-expanded`, a catalog `aria-label`, and the three-context size
   matrix (desktop/tablet+fine pointer 24x24 px, desktop/tablet+coarse
   pointer and phone-width+fine pointer each at least 44x44 px) matching
@@ -132,8 +134,9 @@ contracts.
   phone-width+fine-pointer sizing is a control-sizing/mobile
   accessibility delta from the core's pointer-only implementation (the
   parity spec's role-based queries and 44 px tap-target assertions depend
-  on these; the rendered component suite asserts the expand control's
-  size across the three-context matrix); deliberate delta: the
+  on these; the matrix itself lives only in `ui/plugin.css`, with the parity
+  spec's mobile run asserting the 44 px branch and the 24 px fine-pointer
+  branch carrying no automated assertion); deliberate delta: the
   plugin also puts
   `role="status"` on the empty state (the core's empty and passthrough
   states are plain divs with no role).
@@ -151,10 +154,12 @@ contracts.
   `ui.styles: ["/ui/plugin.css"]` in the manifest; the Task 01 placeholder
   is replaced here). The bundle is built in a separate repository and
   imported at runtime from `/api/plugins/{id}/bundle`, so the host's
-  build never sees it and the stylesheet owns every class it renders (the
-  host's `@source` globs in `apps/web/app/globals.css` cover only
-  `apps/web/components/**` and `apps/packages/ui/src/**`); namespaced class
-  names and kandev CSS custom properties for theme fidelity, mirroring
+  build never sees it and the stylesheet owns every `ph-plugin-*` class it
+  renders (the host's `@source` globs in `apps/web/app/globals.css` cover only
+  `apps/web/components/**` and `apps/packages/ui/src/**`); the row bubble also
+  reuses the host's global `markdown-body` / `markdown-body-user` classes for
+  transcript parity; namespaced class names and kandev CSS custom properties
+  for theme fidelity, mirroring
   `kandev-plugin-voice` (`ui/plugin.css` + `ui.styles`).
 - `ui/build.mjs` (esbuild, no bundled React, `react` and
   `react/jsx-runtime` aliased to `ui/src/react-shim.ts`, the
@@ -199,7 +204,7 @@ contracts.
   updating the `ui.bundle` comment in `manifest.yaml` (esbuild output, no
   longer hand-written).
 - CI: each workflow gains the `kandev-plugin-voice` UI steps -
-  `Set up Node` (node 24), `Set up pnpm` (v10), and `make ui-install` -
+  `Set up Node` (node 22), `Set up pnpm` (v10), and `make ui-install` -
   anchored to its verification step, not to packaging (all three have
   no Node steps after Task 01's strip): `ci.yml` gains them immediately
   before its `Test` step, then `make typecheck`, `make test-ui`, and
@@ -236,10 +241,8 @@ contracts.
   suppression, loading grace, expansion/40% cap, favorites/live updates,
   terminal removal, indicator placement (in flow when not scrollable,
   floating when scrollable) with older-page appends preserving bottom
-  anchoring, and the expand control's size across the three-context matrix
-  (desktop/tablet+fine pointer 24x24 px, desktop/tablet+coarse pointer
-  and phone-width+fine pointer each at least 44x44 px), with controlled
-  observers and fake timers -
+  anchoring, with controlled
+  observers -
   are proven by the permanent rendered component tests in the plugin
   repo).
 - `make package-host` produces a bundle whose panel registration matches
@@ -326,7 +329,7 @@ make package-host
 - `kdlbs/kandev-plugin-prompt-history/ui/src/react-shim.ts`
 - `kdlbs/kandev-plugin-prompt-history/ui/src/test-host.ts`
 - `kdlbs/kandev-plugin-prompt-history/ui/src/derive.test.ts`
-- `kdlbs/kandev-plugin-prompt-history/ui/src/panel.test.ts`
+- `kdlbs/kandev-plugin-prompt-history/ui/src/panel.test.tsx`
 - `kdlbs/kandev-plugin-prompt-history/ui/src/strings.test.ts`
 - `kdlbs/kandev-plugin-prompt-history/ui/plugin.css`
 - `kdlbs/kandev-plugin-prompt-history/ui/build.mjs`

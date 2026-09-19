@@ -13,11 +13,12 @@ import type { PromptHistoryRow } from "./derive";
 /**
  * The panel's render states:
  * - `removed` - the Host facade's terminal state: committed rows stay visible,
- *   pagination and live updates stop.
+ *   pagination and live updates stop; zero committed rows render empty.
  * - `passthrough` - the session kind is passthrough: an unconditional empty
  *   state with no controls (the transcript the arrow would jump to does not
- *   exist).
- * - `loading` - the initial load, no rows committed.
+ *   exist). Checked before every other branch, so a removed passthrough
+ *   session still renders it rather than its committed rows.
+ * - `loading` - the initial unhydrated load, no rows committed.
  * - `error` - the load failed with no rows committed: the retry surface. With
  *   committed rows the rows render without a retry affordance.
  * - `empty` - no rows, no `hasMore`: the definitive empty state.
@@ -43,13 +44,17 @@ export function determinePanelState(
   messages: PluginSessionMessagesState,
   sessionKind: "managed" | "passthrough" | null,
 ): PanelState {
-  if (messages.removed) return { kind: "removed" };
   if (sessionKind === "passthrough") return { kind: "passthrough" };
+  if (messages.removed) {
+    return messages.messages.length > 0 ? { kind: "removed" } : { kind: "empty" };
+  }
   if (messages.messages.length > 0) {
     return { kind: "rows", loadingMore: messages.loadingMore && messages.hasMore };
   }
-  if (messages.loading) return { kind: "loading" };
   if (messages.error) return { kind: "error" };
+  if (messages.loading || (sessionKind === "managed" && !messages.hydrated)) {
+    return { kind: "loading" };
+  }
   if (messages.hasMore) return { kind: "rows", loadingMore: messages.loadingMore && messages.hasMore };
   return { kind: "empty" };
 }
