@@ -53,6 +53,46 @@ func TestManifestCapabilityContract(t *testing.T) {
 	}
 }
 
+// The scope half of the declaration. The capability block and the ui block are
+// pinned exactly above, which already rejects an added capability
+// (`api_write`, `events`, `state`, `secrets`, ...) and any `ui.pages` or
+// `ui.keybindings`; these are the remaining top-level surfaces the acceptance
+// criteria forbid and the published identity fields, both of which the pinned
+// host exposes to operators (the plugin list renders the repo link).
+var forbiddenTopLevelKeys = []string{
+	"webhooks",
+	"actions",
+	"config_schema",
+	"web_apps",
+	"repository_providers",
+	"reference_sources",
+	"agent_tools",
+}
+
+func TestManifestLeastPrivilege(t *testing.T) {
+	manifest := readDeclaration(t, "manifest.yaml")
+	for _, key := range forbiddenTopLevelKeys {
+		if regexp.MustCompile(`(?m)^` + key + `:`).MatchString(manifest) {
+			t.Errorf("manifest.yaml declares %q, but the plugin is documented as least-privilege", key)
+		}
+	}
+}
+
+func TestManifestIdentityMetadata(t *testing.T) {
+	manifest := readDeclaration(t, "manifest.yaml")
+	for _, want := range []struct{ key, value string }{
+		{"display_name", `"Prompt History"`},
+		{"author", `"kandev"`},
+		{"repo_url", `"https://github.com/kdlbs/kandev-plugin-prompt-history"`},
+		{"categories", `["tools"]`},
+	} {
+		got := captureDeclaration(t, manifest, `(?m)^`+want.key+`: (.+)$`, "manifest.yaml")
+		if got != want.value {
+			t.Errorf("manifest.yaml %s = %s, want %s", want.key, got, want.value)
+		}
+	}
+}
+
 func TestManifestRuntimeContract(t *testing.T) {
 	manifest := readDeclaration(t, "manifest.yaml")
 	block := captureDeclaration(t, manifest, `(?m)^  executables:\n((?:    [^\n]*\n)+)`, "manifest.yaml")

@@ -49,6 +49,10 @@ describe("plugin entry point", () => {
     expect(panel.mobileEnabled).toBe(true);
     expect(panel.Component).toBe(PromptHistoryPanel);
     expect(typeof panel.icon).toBe("function");
+    // No `visible` predicate: the host renders PluginTaskPanelUnavailable
+    // whenever one is present and returns false, so adding any predicate would
+    // replace the panel body on every session.
+    expect(panel.visible).toBeUndefined();
 
     expect(maybeHost()).not.toBeNull();
     plugin.destroy();

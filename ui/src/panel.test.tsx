@@ -92,6 +92,33 @@ describe("determinePanelState", () => {
     if (state.kind === "rows") expect(state.loadingMore).toBe(false);
   });
 
+  it("prefers the retry surface over pagination for a zero-rows page with an error", () => {
+    // A fresh page can carry no user prompts, still have older pages, and
+    // report a retryable error: the parity reference checks its error branch
+    // before the empty/pagination path.
+    const state = determinePanelState(
+      makeMessages([], {
+        hasMore: true,
+        error: { code: "upstream_failure", message: "x", retryable: true },
+      }),
+      "managed",
+    );
+    expect(state).toEqual({ kind: "error" });
+  });
+
+  it("renders the retry surface for a zero-rows page that still has more to load", () => {
+    renderPanel(
+      makeMessages([], {
+        hasMore: true,
+        error: { code: "upstream_failure", message: "x", retryable: true },
+      }),
+      makeTurns([]),
+    );
+
+    expect(screen.getByTestId("ph-plugin-retry")).toBeTruthy();
+    expect(screen.queryByTestId("ph-plugin-sentinel")).toBeNull();
+  });
+
   it("returns rows with loadingMore while hasMore", () => {
     const state = determinePanelState(
       makeMessages(rows().messages, { hasMore: true, loadingMore: true }),
