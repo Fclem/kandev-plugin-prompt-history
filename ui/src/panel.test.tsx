@@ -590,6 +590,32 @@ describe("PromptHistoryPanel", () => {
     expect(document.querySelector('[data-message-id="foreign"]')).toBeNull();
   });
 
+  it("clears the older-page indicator when a page load is rejected", () => {
+    const row = message({ id: "m", content: "page", promptIndex: 5 });
+    const loadMore = vi.fn().mockRejectedValue(new Error("continuation failed"));
+    const { store } = renderPanel(
+      makeMessages([row], { hasMore: true, loadingMore: true, loadMore }),
+      makeTurns([]),
+    );
+    expect(screen.getByTestId("ph-plugin-loading-older")).toBeTruthy();
+
+    // The pinned facade records the rejection as loadingMore false plus a
+    // retryable error; nothing is loading, so nothing may say it is.
+    act(() => {
+      store.setMessages(
+        makeMessages([row], {
+          hasMore: true,
+          loadingMore: false,
+          error: { code: "upstream_failure", message: "x", retryable: true },
+          loadMore,
+        }),
+      );
+    });
+
+    expect(screen.queryByTestId("ph-plugin-loading-older")).toBeNull();
+    expect(screen.queryByTestId("ph-plugin-loading-older-floating")).toBeNull();
+  });
+
   it("renders user-prompt rows with ordinals, agent flags, send time, and durations", () => {
     const newest = message({
       id: "newest",

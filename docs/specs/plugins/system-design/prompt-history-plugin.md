@@ -322,7 +322,10 @@ The panel mirrors the core's pagination and reveal behavior:
 - A minimum 400 ms loading-indicator display window keeps back-to-back
   auto-loads readable as one indicator.
 - The loading indicator floats or renders in-flow based on measured
-  scrollability, and the view sticks to the bottom while older pages load.
+  scrollability, and the view sticks to the bottom while older pages load. Its
+  minimum-display grace bridges a settled page into the next chained one, so a
+  rejected page - which leaves no request in flight and no re-armed successor -
+  suppresses it: the error status is reported instead of a loading claim.
 - The sentinel uses `rootMargin: "0px 0px 200px 0px"`; the Host facade joins
   concurrent older-page loads for the same continuation, and the panel's
   sentinel must not re-issue a load already in flight. (The core's

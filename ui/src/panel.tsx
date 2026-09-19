@@ -652,7 +652,12 @@ export function PromptHistoryPanel(props: PluginTaskPanelProps) {
 
   const shouldAutoLoad = state.kind === "rows" && shouldPaginate(rows, messagesState.hasMore);
   const showLoadingGrace = useLoadingGrace(sessionId, messagesState.loadingMore);
-  const showLoading = shouldAutoLoad && (messagesState.loadingMore || showLoadingGrace);
+  // A rejected page leaves no request in flight and no re-armed successor to
+  // bridge, so the grace must not keep claiming older messages are loading.
+  const showLoading =
+    shouldAutoLoad &&
+    !messagesState.error &&
+    (messagesState.loadingMore || showLoadingGrace);
 
   const { sentinelRef, onUserGesture, recheck, restorePinnedPosition } =
     usePanelOlderPromptSentinel({

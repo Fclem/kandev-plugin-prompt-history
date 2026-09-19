@@ -200,7 +200,10 @@ tag that matches the manifest version to run `.github/workflows/release.yml`:
 it repeats verification, cross-compiles all platforms, packs the tarball, and
 creates a GitHub Release with the two assets the kandev
 [marketplace](https://github.com/kdlbs/kandev/blob/main/docs/public/plugins-marketplace.md)
-install pipeline expects:
+install pipeline expects. The workflow refuses a pushed tag that does not
+match the manifest `version` (checked against the Makefile `VERSION` too), so a
+mistyped tag fails before anything is published instead of attaching a
+differently-versioned package to it.
 
 - `<id>-<version>.tar.gz` — the plugin package (with its own internal
   `checksums.txt` verified on install), and
