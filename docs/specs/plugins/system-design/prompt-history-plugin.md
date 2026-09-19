@@ -199,7 +199,11 @@ Module layout:
   indicator) and older-page appends while the sentinel is active preserving
   bottom anchoring;
   `panel.tsx` is also rendered by the
-  throwaway parity spec for cross-repository production-artifact parity.
+  throwaway parity spec for cross-repository production-artifact parity, and
+  `ui/src/bundle.test.ts` smoke-mounts the built `ui/bundle.js` (built by the
+  suite's global setup) through its host-global registration and
+  `initialize`, so the esbuild React aliases and the registration payload are
+  covered as the host consumes them rather than only through `src/` imports.
 - `ui/src/strings.ts` — translation catalogs (en plus every supported locale
   and the pseudo locale), registered through
   `registry.registerTranslations`. Catalog shape is pinned: flat keys
