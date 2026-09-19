@@ -38,7 +38,10 @@ test-backend:
 test-ui:
 	cd ui && pnpm exec vitest run
 
-typecheck:
+## Typecheck the UI. Depends on `ui` because the suite's bundle smoke imports
+## the built ui/bundle.js, which is a gitignored artifact: without it the
+## typecheck fails on a fresh checkout (and CI runs this before any build).
+typecheck: ui
 	cd ui && pnpm exec tsc --noEmit
 
 ## Build the UI bundle (esbuild) into ui/bundle.js.

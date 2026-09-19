@@ -64,7 +64,7 @@ jobs:
             exit 1
           }
 
-          LATEST_TAG="$(git tag --list 'v*' | awk '/^v[0-9]+\.[0-9]+\.[0-9]+$/\' | sort -V | tail -n 1)"
+          LATEST_TAG="$(git tag --list 'v*' | awk '/^v[0-9]+\.[0-9]+\.[0-9]+$/' | sort -V | tail -n 1)"
           BASELINE="$(CURRENT_VERSION="$CURRENT_VERSION" LATEST_TAG="$LATEST_TAG" python3 - <<'PY'
           import os
           current = tuple(map(int, os.environ["CURRENT_VERSION"].split(".")))

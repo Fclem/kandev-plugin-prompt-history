@@ -1054,6 +1054,12 @@ describe("PromptHistoryPanel", () => {
       observer.fire();
       await Promise.resolve();
     });
+    // Drain the queued geometry recheck: its frame is phase-dependent, and a
+    // positive page lets it chain a successor load.
+    await act(async () => {
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+      await Promise.resolve();
+    });
     expect(loadMore).toHaveBeenCalledTimes(1);
 
     act(() => {
@@ -1076,7 +1082,9 @@ describe("PromptHistoryPanel", () => {
 
     expect(loadMore).toHaveBeenCalledTimes(1);
 
-    // The scroller itself still is.
+    // The scroller itself still retries; the delta is asserted rather than a
+    // total because the positive page may chain one successor load.
+    const attempts = loadMore.mock.calls.length;
     await act(async () => {
       screen.getByTestId("ph-plugin-scroll").dispatchEvent(
         new MouseEvent("pointerdown", { bubbles: true }),
@@ -1084,7 +1092,7 @@ describe("PromptHistoryPanel", () => {
       await Promise.resolve();
     });
 
-    expect(loadMore).toHaveBeenCalledTimes(2);
+    expect(loadMore.mock.calls.length).toBeGreaterThan(attempts);
   });
 
   it("renders the newest prompt first regardless of the seeded order", () => {
