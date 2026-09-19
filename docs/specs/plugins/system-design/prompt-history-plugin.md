@@ -316,6 +316,15 @@ The panel mirrors the core's pagination and reveal behavior:
   condition); with committed rows, the rows render without a retry
   affordance. `retry()` re-runs the Host facade's recovery. The turns hook's
   `error` is not surfaced.
+- A *continuation* failure is not terminal: the pinned facade keeps the
+  committed rows, the continuation cursor and `hasMore`, stores a retryable
+  `error`, and leaves `loadMore` usable (its guard is scope, `removed`,
+  `hasMore` and the cursor; the loader's early `throw` is the query-level
+  `taskId` error, not this one). So with rows on screen the panel recovers by
+  retrying the continuation through its existing paths - a user gesture, a
+  sentinel exit and re-entry, or the post-commit geometry recheck - and the
+  facade clears `error` on the successful page. Only the zero-rows case needs
+  the visible retry surface.
 - `removed` is the Host facade's terminal state, not a parity-reference
   state: the core panel unmounts with the task, so the plugin's "rows stay
   visible, `hasMore` false" behavior is the accepted delta. On `removed`,

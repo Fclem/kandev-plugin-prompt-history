@@ -1644,6 +1644,40 @@ describe("PromptHistoryPanel", () => {
     }
   });
 
+  it("keeps retrying a rejected older-page load while the committed rows stay", async () => {
+    const row = message({ id: "m", content: "page", promptIndex: 5 });
+    const loadMore = vi.fn().mockRejectedValue(new Error("continuation failed"));
+    renderPanel(makeMessages([row], { hasMore: true, loadMore }), makeTurns([]));
+    const observer = MockIntersectionObserver.instances.at(-1);
+    if (!observer) throw new Error("expected pagination observer");
+
+    await act(async () => {
+      observer.fire();
+      await Promise.resolve();
+    });
+
+    // The pinned facade's continuation failure keeps the committed rows, the
+    // cursor and `hasMore`, and stores a retryable error; `loadMore` itself is
+    // not error-gated (only the query-level error is), so the panel's own
+    // recovery paths still apply.
+    expect(loadMore.mock.calls.length).toBeGreaterThan(0);
+    expect(document.querySelector('[data-message-id="m"]')).toBeTruthy();
+    expect(screen.queryByTestId("ph-plugin-retry")).toBeNull();
+    expect(screen.getByTestId("ph-plugin-sentinel")).toBeTruthy();
+
+    // A gesture retries the continuation rather than needing a remount.
+    const attempts = loadMore.mock.calls.length;
+    await act(async () => {
+      screen.getByTestId("ph-plugin-scroll").dispatchEvent(
+        new WheelEvent("wheel", { bubbles: true }),
+      );
+      await Promise.resolve();
+    });
+
+    expect(loadMore.mock.calls.length).toBeGreaterThan(attempts);
+    expect(screen.getByTestId("ph-plugin-sentinel")).toBeTruthy();
+  });
+
   it("resets a zero-progress disarm when the active session changes", async () => {
     const loadA = vi.fn().mockResolvedValue(0);
     const loadB = vi.fn().mockResolvedValue(1);
