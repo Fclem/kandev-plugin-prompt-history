@@ -43,7 +43,8 @@ Manifest fields, per the [manifest reference](../../../public/plugins-manifest.m
 - `id: "kandev-plugin-prompt-history"`, `api_version: 2`,
   `version: "0.1.0"`, `display_name: "Prompt History"`, a one-line
   `description`, `author: "kandev"`, `categories: ["tools"]`, and
-  `repo_url: "https://github.com/kdlbs/kandev-plugin-prompt-history"`.
+  `repo_url: "https://github.com/Fclem/kandev-plugin-prompt-history"` (the
+  publishing repo; the scaffold's `kdlbs/…` placeholder 404s).
 - `min_kandev_version` — the first release carrying the browser
   conversation facade (PR #3588). `0.91.1` is only the `messages`
   capability audit floor (`MinimumMessagesCapabilityVersion`); as of this
@@ -179,7 +180,14 @@ Module layout:
   version (see `ui/src/index.tsx` above) and the row glyphs carry
   intrinsic sizes (see `ui/src/panel.tsx` above) so neither a stale nor a
   missing stylesheet can render the earlier release's colours or
-  container-wide icons. Row height follows the pointer: the
+  container-wide icons. Two measured parity rules the stylesheet must keep:
+  the row bubble's radius comes from the host's `--radius` token, never a
+  literal — every radius utility in the host theme (`rounded-md`/`xl`/`2xl`,
+  i.e. the reference's `rounded-2xl`) resolves to that token, measured at
+  6 px in the shipping host, and a literal `1rem` rendered the bubble
+  visibly rounder than the reference; and the stylesheet must not override
+  the host's font properties (no `font-variant-numeric`, which made the
+  meta digits wider than the reference). Row height follows the pointer: the
   compact desktop row (`min-height: 0`) is scoped to
   `(min-width: 768px) and (pointer: fine)`, so a coarse-pointer desktop or
   tablet keeps the 44 px row and the 44 px expand control is not clipped by
