@@ -91,7 +91,19 @@ Module layout:
   `initialize(registry, host)` calls `setHost(host)` before registering
   the task panel and translations, and `destroy()` calls `clearHost()` so
   a same-tab disable/enable cycle starts clean (AC-001.4); the
-  registrations are repeatable across enable/disable cycles.
+  registrations are repeatable across enable/disable cycles. It also pins
+  the plugin's own host-injected stylesheet: the host injects `ui.styles`
+  as `link[rel=stylesheet][data-plugin-id=<id>]` carrying the bare
+  manifest path, while the bundle URL it loads *is* versioned (`?v=`), so
+  the stylesheet URL stayed identical across releases and the browser kept
+  serving the previous release's CSS against the new markup — an updated
+  plugin rendered the old bubble colour and left the new SVG glyphs
+  unsized (Chromium: >1300 px, the reported "giant icons").
+  `initialize` re-points each of this plugin's links at `?v=<manifest
+  version>`, inlined by `ui/build.mjs` as `__PLUGIN_VERSION__`; an
+  already-versioned href and other plugins' links are left untouched, and
+  the re-point is a no-op when the version is absent (a direct
+  `src/index.tsx` import under vitest).
 - `ui/src/panel.tsx` — the `PromptHistoryPanel` component, registered with
   panel key `prompt-history` (layout id
   `plugin:kandev-plugin-prompt-history:prompt-history`), a `titleKey`
@@ -112,7 +124,15 @@ Module layout:
   the accepted cost that the desktop "+" menu and the mobile Panels picker
   offer the panel on passthrough sessions, opening an empty panel. Renders
   rows (including the agent-sent indicator as an inline SVG glyph, since
-  `host.ui` exposes no icon primitive), loading, empty, error, passthrough,
+  `host.ui` exposes no icon primitive — every row glyph is rendered with
+  intrinsic `width`/`height` attributes (12 px clock/hourglass, 14 px
+  robot and chevrons) mirroring the reference's `h-3 w-3` / `h-3.5 w-3.5` /
+  `size={14}`: an inline `<svg>` with a `viewBox` and no intrinsic size
+  sizes itself to its container, so a stale or missing `plugin.css` — a
+  reachable state, see the stylesheet version pinning above — rendered the
+  glyphs at panel width instead of at icon size. `ui/plugin.css` still
+  wins over the attributes and remains the styling source of truth),
+  loading, empty, error, passthrough,
   and removed states; owns expansion state keyed by message id. State
   determination and `openMessage` outcome handling delegate to the
   pure `ui/src/panel-state.ts` seam. Test ids use
@@ -154,7 +174,12 @@ Module layout:
   loads, so prompt text renders exactly as it does in the transcript. It uses
   namespaced class names and kandev CSS
   custom properties for theme fidelity, mirroring `kandev-plugin-voice`
-  (`ui/plugin.css` + `ui.styles`). Row height follows the pointer: the
+  (`ui/plugin.css` + `ui.styles`). Because the host injects this file
+  without a cache key, `initialize` re-points it at the running bundle's
+  version (see `ui/src/index.tsx` above) and the row glyphs carry
+  intrinsic sizes (see `ui/src/panel.tsx` above) so neither a stale nor a
+  missing stylesheet can render the earlier release's colours or
+  container-wide icons. Row height follows the pointer: the
   compact desktop row (`min-height: 0`) is scoped to
   `(min-width: 768px) and (pointer: fine)`, so a coarse-pointer desktop or
   tablet keeps the 44 px row and the 44 px expand control is not clipped by

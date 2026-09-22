@@ -35,6 +35,27 @@ let nextDescriptionId = 0;
 
 type PanelIconName = "robot" | "clock" | "hourglass" | "chevron-up" | "chevron-down";
 
+/** Intrinsic pixel size per glyph, mirroring the parity reference's icon
+ * classes (`h-3 w-3` for the clock/hourglass, `h-3.5 w-3.5` for the robot,
+ * `size={14}` for the chevrons).
+ *
+ * These are rendered as `width`/`height` attributes, not only as the
+ * stylesheet's `width`/`height` declarations, because an inline `<svg>` with
+ * a `viewBox` and no intrinsic dimensions sizes itself to its container: with
+ * a stale or missing `plugin.css` the glyphs rendered at panel width (over
+ * 1300 px in Chromium), which is what "the icons are way too big" was. The
+ * reference gets this for free — `@tabler/icons-react` always emits explicit
+ * `width`/`height` — so a plugin drawing its own glyphs has to match it. CSS
+ * still wins over the attribute, so `ui/plugin.css` remains the styling
+ * source of truth (`ph-plugin-meta-icon` etc.). */
+const PANEL_ICON_SIZES: Record<PanelIconName, number> = {
+  robot: 14,
+  clock: 12,
+  hourglass: 12,
+  "chevron-up": 14,
+  "chevron-down": 14,
+};
+
 function PanelIcon({ className, name }: { className: string; name: PanelIconName }) {
   let content: React.ReactNode;
   switch (name) {
@@ -70,6 +91,8 @@ function PanelIcon({ className, name }: { className: string; name: PanelIconName
   return (
     <svg
       className={className}
+      width={PANEL_ICON_SIZES[name]}
+      height={PANEL_ICON_SIZES[name]}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"

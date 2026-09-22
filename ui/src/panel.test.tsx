@@ -703,6 +703,44 @@ describe("PromptHistoryPanel", () => {
     expect(screen.getByText("1s")).toBeTruthy();
   });
 
+  it("gives every row glyph intrinsic dimensions", () => {
+    // The host injects the stylesheet un-versioned, so a stale or missing
+    // `plugin.css` is a reachable runtime state; an inline SVG with a viewBox
+    // and no intrinsic size then renders at container width (measured >1300 px
+    // in Chromium), which is the reported giant clock. Attributes keep the
+    // glyphs at their intended size regardless of the stylesheet's state.
+    const newest = message({
+      id: "newest",
+      content: "newest prompt",
+      createdAt: "2026-01-01T00:00:02Z",
+      turnId: "tn",
+      promptIndex: 2,
+      senderTaskId: "other",
+    });
+    renderPanel(
+      makeMessages([newest], { hasMore: false }),
+      makeTurns([
+        {
+          id: "tn",
+          taskId: "t",
+          sessionId: "s",
+          startedAt: "2026-01-01T00:00:02Z",
+          completedAt: "2026-01-01T00:00:05Z",
+          updatedAt: "2026-01-01T00:00:05Z",
+        },
+      ]),
+    );
+    const intrinsicSize = (selector: string) => {
+      const svg = document.querySelector(selector);
+      return [svg?.getAttribute("width"), svg?.getAttribute("height")];
+    };
+    // 12 px for the clock/hourglass and 14 px for the robot, matching the
+    // parity reference's `h-3 w-3` / `h-3.5 w-3.5`.
+    expect(intrinsicSize(".ph-plugin-row-time svg")).toEqual(["12", "12"]);
+    expect(intrinsicSize(".ph-plugin-duration svg")).toEqual(["12", "12"]);
+    expect(intrinsicSize(".ph-plugin-agent-icon")).toEqual(["14", "14"]);
+  });
+
   it("adds a duration when a live turn completes", () => {
     const single = message({
       id: "m",
