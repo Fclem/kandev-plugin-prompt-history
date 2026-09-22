@@ -8,7 +8,7 @@
 # in sync when you rename.
 id: "kandev-plugin-prompt-history"
 api_version: 2
-version: "0.1.1"
+version: "0.2.0"
 display_name: "Prompt History"
 description: "Task panel listing the active session's user prompts with parity to the shipped core panel."
 author: "kandev"

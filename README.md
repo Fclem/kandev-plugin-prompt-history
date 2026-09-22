@@ -182,7 +182,7 @@ Either through the UI (**Settings > Plugins > Install plugin**, URL or file
 upload), or directly:
 
 ```sh
-curl -F package=@kandev-plugin-prompt-history-0.1.1.tar.gz \
+curl -F package=@kandev-plugin-prompt-history-0.2.0.tar.gz \
   http://localhost:<kandev-port>/api/plugins/install
 ```
 
