@@ -31,18 +31,21 @@ instance via **Settings > Plugins**.
 - **A no-op backend** — `server/` embeds `pluginsdk.UnimplementedPlugin` and
   overrides no RPCs. The browser conversation facade needs no plugin backend
   logic, so the platform-matching binary is only the go-plugin handshake.
-- **A plugin-owned stylesheet** — `ui/plugin.css` owns every class the panel
-  renders (the bundle is built in a separate repository and imported at
-  runtime from `/api/plugins/{id}/bundle`, so the host's build never sees it
-  and no utility in the host's Tailwind sources applies to it).
+- **A plugin-owned stylesheet** — `ui/plugin.css` owns every `ph-plugin-*`
+  class the panel renders (the bundle is built in a separate repository and
+  imported at runtime from `/api/plugins/{id}/bundle`, so the host's build
+  never sees it and no utility in the host's Tailwind sources applies to it).
+  The row bubble deliberately also reuses the host's global `markdown-body`
+  and `markdown-body-user` classes, which the host's `globals.css` always
+  loads, so prompt text renders exactly as it does in the transcript.
 - **Localized copy** — every user-facing string resolves through the plugin
   translation catalog (`ui/src/strings.ts`) with an English fallback; catalogs
   exist for `en`, `pt-pt`, `zh-cn`, `zh-hk`, `zh-tw`, and `pseudo`.
 
 ## Minimum host version
 
-`manifest.yaml` declares `min_kandev_version: "0.94.1"` — the first release
-carrying the browser conversation facade (PR #3588) that `ui/bundle.js` calls
+`manifest.yaml` declares `min_kandev_version: "0.95.0"` — the first stable
+release after PR #3588 added the browser conversation facade that `ui/bundle.js` calls
 through `host.conversation`. The `messages` capability audit floor is `0.91.1`;
 this plugin needs the facade, so the facade floor is the binding minimum. A
 release host compares it against its own version at install time and refuses an
@@ -52,12 +55,12 @@ then breaks on a missing API.
 Two caveats worth knowing:
 
 - The check is **release-only by design**. A host built from a git checkout
-  reports a git-describe version like `v0.94.1-27-g4705f1fd0`, which isn't a
+  reports a git-describe version like `v0.95.0-27-g4705f1fd0`, which isn't a
   release version, so the gate is skipped and the install succeeds whatever
   floor you declare. A successful sideload onto your dev instance is not
   evidence that your floor is correct — check it against the kandev history
   instead (`git merge-base --is-ancestor <commit> <tag>`).
-- The floor is confirmed at release cut: `0.94.1` is the first stable release
+- The floor is confirmed at release cut: `0.95.0` is the first stable release
   cut after the PR #3588 merge.
 
 ## How a plugin runs (gRPC subprocess, not HTTP)
@@ -197,7 +200,10 @@ tag that matches the manifest version to run `.github/workflows/release.yml`:
 it repeats verification, cross-compiles all platforms, packs the tarball, and
 creates a GitHub Release with the two assets the kandev
 [marketplace](https://github.com/kdlbs/kandev/blob/main/docs/public/plugins-marketplace.md)
-install pipeline expects:
+install pipeline expects. The workflow refuses a pushed tag that does not
+match the manifest `version` (checked against the Makefile `VERSION` too), so a
+mistyped tag fails before anything is published instead of attaching a
+differently-versioned package to it.
 
 - `<id>-<version>.tar.gz` — the plugin package (with its own internal
   `checksums.txt` verified on install), and

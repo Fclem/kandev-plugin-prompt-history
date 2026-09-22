@@ -15,28 +15,115 @@ import { setHost } from "./host";
 import type {
   PluginHost,
   PluginConversationMessage,
+  PluginConversationSort,
   PluginConversationTurn,
+  PluginSessionMessagesQuery,
   PluginSessionMessagesState,
   PluginSessionTurnsState,
 } from "./host";
 import { CATALOGS } from "./strings";
+
+/** Mirrors the pinned facade's `compareConversationMessages`: millisecond
+ * comparison, then the nanosecond fraction, then an id tie-break, negated for
+ * `desc`. */
+function compareMessages(
+  left: PluginConversationMessage,
+  right: PluginConversationMessage,
+  sort: PluginConversationSort,
+): number {
+  const ordered =
+    compareTimestamps(left.createdAt, right.createdAt) || compareStrings(left.id, right.id);
+  return sort === "asc" ? ordered : -ordered;
+}
+
+function compareStrings(left: string, right: string): number {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
+function compareTimestamps(left: string, right: string): number {
+  const leftMs = Date.parse(left);
+  const rightMs = Date.parse(right);
+  if (Number.isFinite(leftMs) && Number.isFinite(rightMs)) {
+    if (leftMs !== rightMs) return leftMs < rightMs ? -1 : 1;
+    return compareStrings(fractionNanoseconds(left), fractionNanoseconds(right));
+  }
+  return compareStrings(left, right);
+}
+
+function fractionNanoseconds(value: string): string {
+  return (value.match(/\.(\d+)(?:Z|[+-]\d{2}:\d{2})$/)?.[1] ?? "").padEnd(9, "0").slice(0, 9);
+}
 
 export class TestHostStore {
   messagesState: PluginSessionMessagesState;
   turnsState: PluginSessionTurnsState;
   favorites = new Set<string>();
   openMessageResult: { status: "accepted" | "unavailable" } = { status: "accepted" };
-  breakpoint: { isMobile: boolean; isFinePointer: boolean } = {
-    isMobile: false,
-    isFinePointer: true,
-  };
+  openedMessageIds: string[] = [];
+  mentionActivations = 0;
   locale = "en";
 
   private listeners = new Set<() => void>();
+  private queryCache = new Map<string, { source: PluginSessionMessagesState; value: PluginSessionMessagesState }>();
+  private turnsCache = new Map<string, { source: PluginSessionTurnsState; value: PluginSessionTurnsState }>();
 
   constructor(messagesState: PluginSessionMessagesState, turnsState: PluginSessionTurnsState) {
     this.messagesState = messagesState;
     this.turnsState = turnsState;
+  }
+
+  /** The task the panel is bound to, as the host's conversation-scope
+   * provider binds it. An omitted query `taskId` falls back to this, which is
+   * what the pinned facade's `resolveTaskId` does. */
+  taskScopeId: string | null = "t";
+
+  /** The messages snapshot as the pinned facade would return it for `query`:
+   * the session scope, the task scope, `authorTypes`, `sort` and `pageSize`
+   * are the query's observable shaping (the panel relies on the two scopes for
+   * isolation, on `authorTypes` to exclude agent-authored messages, on `desc`
+   * for the newest-first order `derive` assumes, and on the page size for one
+   * page of prompts), so the mock applies all of them rather than handing back
+   * every message in store order. Results are cached per query and source
+   * snapshot, keeping the `useSyncExternalStore` snapshot referentially
+   * stable. */
+  messagesForQuery(query: PluginSessionMessagesQuery): PluginSessionMessagesState {
+    const authorTypes = query.authorTypes ?? [];
+    const sort = query.sort ?? "desc";
+    const taskId = query.taskId === undefined ? this.taskScopeId : query.taskId;
+    const key = `${query.sessionId ?? ""}|${taskId ?? ""}|${sort}|${query.pageSize ?? ""}|${[...authorTypes].join("|")}`;
+    const cached = this.queryCache.get(key);
+    if (cached && cached.source === this.messagesState) return cached.value;
+    const source = this.messagesState;
+    const value: PluginSessionMessagesState = {
+      ...source,
+      messages: source.messages
+        .filter((message) => message.sessionId === query.sessionId)
+        .filter((message) => taskId === null || message.taskId === taskId)
+        .filter(
+          (message) => authorTypes.length === 0 || authorTypes.includes(message.authorType),
+        )
+        .sort((left, right) => compareMessages(left, right, sort))
+        .slice(0, query.pageSize ?? 20),
+    };
+    this.queryCache.set(key, { source, value });
+    return value;
+  }
+
+  /** The turns snapshot for one session, mirroring the facade's per-session
+   * read. */
+  turnsForSession(sessionId: string | null): PluginSessionTurnsState {
+    const key = sessionId ?? "";
+    const cached = this.turnsCache.get(key);
+    if (cached && cached.source === this.turnsState) return cached.value;
+    const source = this.turnsState;
+    const value: PluginSessionTurnsState = {
+      ...source,
+      turns: source.turns.filter((turn) => turn.sessionId === sessionId),
+    };
+    this.turnsCache.set(key, { source, value });
+    return value;
   }
 
   setMessages(state: PluginSessionMessagesState): void {
@@ -49,16 +136,13 @@ export class TestHostStore {
     this.emit();
   }
 
-  setFavorite(messageId: string, favorite: boolean): void {
-    if (favorite) this.favorites.add(messageId);
-    else this.favorites.delete(messageId);
+  setFavorite(sessionId: string | null, messageId: string, favorite: boolean): void {
+    const key = `${sessionId ?? ""}:${messageId}`;
+    if (favorite) this.favorites.add(key);
+    else this.favorites.delete(key);
     this.emit();
   }
 
-  setBreakpoint(breakpoint: { isMobile: boolean; isFinePointer: boolean }): void {
-    this.breakpoint = breakpoint;
-    this.emit();
-  }
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
@@ -67,14 +151,33 @@ export class TestHostStore {
     };
   };
 
-  getMessagesSnapshot = (): PluginSessionMessagesState => this.messagesState;
-  getTurnsSnapshot = (): PluginSessionTurnsState => this.turnsState;
-  getBreakpointSnapshot = (): { isMobile: boolean; isFinePointer: boolean } => this.breakpoint;
-
   private emit(): void {
     for (const listener of this.listeners) listener();
   }
 }
+
+/** The nested interactive shapes the host's prompt renderer can emit inside a
+ * row: a mention chip as `<button>` on touch devices and `<span role="button">`
+ * on fine-pointer ones (including touchscreen laptops), and prompt links as a
+ * native anchor or a role-link span. The panel's nested-interactive guard must
+ * recognise every one of them. */
+const MENTION_TARGETS: Record<
+  string,
+  { tag: string; testId: string; props: Record<string, unknown> }
+> = {
+  "@interactive": { tag: "button", testId: "ph-test-mention", props: { type: "button" } },
+  "@rolebutton": {
+    tag: "span",
+    testId: "ph-test-mention-role",
+    props: { role: "button", tabIndex: 0 },
+  },
+  "@link": { tag: "a", testId: "ph-test-mention-link", props: { href: "#prompt-link" } },
+  "@rolelink": {
+    tag: "span",
+    testId: "ph-test-mention-role-link",
+    props: { role: "link", tabIndex: 0 },
+  },
+};
 
 function makeMessages(
   messages: readonly PluginConversationMessage[],
@@ -117,10 +220,12 @@ export function createTestHost(
     const catalog: Record<string, string> =
       (CATALOGS as Record<string, Record<string, string>>)[store.locale] ?? (CATALOGS.en as Record<string, string>);
     let value = catalog[key] ?? key;
-    if (options) {
-      for (const [placeholder, replacement] of Object.entries(options)) {
-        value = value.split(`{{${placeholder}}}`).join(String(replacement));
-      }
+    const replacements =
+      options?.values && typeof options.values === "object" && !Array.isArray(options.values)
+        ? (options.values as Record<string, unknown>)
+        : {};
+    for (const [placeholder, replacement] of Object.entries(replacements)) {
+      value = value.split(`{{${placeholder}}}`).join(String(replacement));
     }
     return value;
   };
@@ -135,12 +240,14 @@ export function createTestHost(
     React,
     jsx: (React as unknown as { createElement: unknown }).createElement,
     conversation: {
-      useSessionMessages: (_query: unknown): PluginSessionMessagesState =>
-        useStore(store.getMessagesSnapshot),
-      useSessionTurns: (_sessionId: string | null, _taskId?: string | null): PluginSessionTurnsState =>
-        useStore(store.getTurnsSnapshot),
-      useMessageFavorite: (_sessionId: string | null, messageId: string): boolean =>
-        useStore(() => store.favorites.has(messageId)),
+      useSessionMessages: (query: PluginSessionMessagesQuery): PluginSessionMessagesState =>
+        useStore(() => store.messagesForQuery(query)),
+      useSessionTurns: (
+        sessionId: string | null,
+        _taskId?: string | null,
+      ): PluginSessionTurnsState => useStore(() => store.turnsForSession(sessionId)),
+      useMessageFavorite: (sessionId: string | null, messageId: string): boolean =>
+        useStore(() => store.favorites.has(`${sessionId ?? ""}:${messageId}`)),
     },
     i18n: {
       get locale() {
@@ -150,14 +257,45 @@ export function createTestHost(
       useTranslation: () => ({ locale: store.locale, t }),
     },
     ui: {
-      PromptMentionText: ({ text }: { text: string; interactive?: boolean }) =>
-        React.createElement("span", { "data-ph-mention": "true" }, text),
+      PromptMentionText: ({
+        text,
+        interactive,
+      }: {
+        text: string;
+        interactive?: boolean;
+      }) => {
+        const target = interactive ? MENTION_TARGETS[text] : undefined;
+        return React.createElement(
+          "span",
+          { "data-ph-mention": "true" },
+          target
+            ? React.createElement(
+                target.tag,
+                {
+                  ...target.props,
+                  "data-testid": target.testId,
+                  onClick: () => {
+                    store.mentionActivations += 1;
+                  },
+                  onKeyDown: (event: React.KeyboardEvent) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    store.mentionActivations += 1;
+                  },
+                },
+                text,
+              )
+            : text,
+        );
+      },
     },
     utils: {
       cn: (...inputs: unknown[]): string => inputs.filter(Boolean).join(" "),
-      formatRelativeTime: (_value: string | number | Date): string => "5 minutes ago",
+      // Input-derived so a caller passing the wrong timestamp is observable:
+      // the pinned host formats whatever it is given.
+      formatRelativeTime: (value: string | number | Date): string => `relative:${String(value)}`,
     },
-    useResponsiveBreakpoint: () => useStore(store.getBreakpointSnapshot),
+    useResponsiveBreakpoint: () => ({ isMobile: false }),
     theme: "light" as const,
     onThemeChange: (_listener: (theme: "light" | "dark") => void): (() => void) => () => {},
     navigate: (_href: string) => {},

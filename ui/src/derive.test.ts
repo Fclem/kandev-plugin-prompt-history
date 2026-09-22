@@ -59,11 +59,18 @@ describe("derivePromptHistoryRows", () => {
   it("derives the ordinal and agent-sent flag from the DTO fields", () => {
     const withOrdinal = message({ id: "m", promptIndex: 7, senderTaskId: "other" });
     const withoutOrdinal = message({ id: "n" });
-    const rows = derivePromptHistoryRows([withOrdinal, withoutOrdinal], [], true);
+    const zeroOrdinal = message({ id: "z", promptIndex: 0 });
+    const rows = derivePromptHistoryRows(
+      [withOrdinal, withoutOrdinal, zeroOrdinal],
+      [],
+      true,
+    );
     expect(rows[0]?.promptNumber).toBe(7);
     expect(rows[0]?.isAgentPrompt).toBe(true);
     expect(rows[1]?.promptNumber).toBeNull();
     expect(rows[1]?.isAgentPrompt).toBe(false);
+    // A zero index is "absent", not "#0".
+    expect(rows[2]?.promptNumber).toBeNull();
   });
 
   it("bounds each duration by the earlier of turn completion and next-newer prompt", () => {
@@ -89,6 +96,48 @@ describe("derivePromptHistoryRows", () => {
     const rows = derivePromptHistoryRows([newest, older], turns, true);
     expect(rows[0]?.durationSeconds).toBe(3); // 05Z - 02Z, no newer bound
     expect(rows[1]?.durationSeconds).toBe(1); // min(01Z turn, 02Z newer) - 00Z
+  });
+
+  it("lets the next-newer prompt bound win when the turn completes later", () => {
+    // Newest-first: index 0 is the newest prompt, index 1 the older one.
+    const newer = message({
+      id: "newer",
+      createdAt: "2026-01-01T00:00:03.2Z",
+      promptIndex: 2,
+    });
+    const older = message({
+      id: "older",
+      createdAt: "2026-01-01T00:00:00Z",
+      turnId: "to",
+      promptIndex: 1,
+    });
+    const rows = derivePromptHistoryRows(
+      [newer, older],
+      [turn({ id: "to", completedAt: "2026-01-01T00:00:10Z" })],
+      true,
+    );
+    // 03.2Z - 00Z floors to 3, not the turn's 10s.
+    expect(rows[1]?.durationSeconds).toBe(3);
+  });
+
+  it("lets the next-newer prompt bound win when the turn completion is unparseable", () => {
+    const newer = message({
+      id: "newer",
+      createdAt: "2026-01-01T00:00:04Z",
+      promptIndex: 2,
+    });
+    const older = message({
+      id: "older",
+      createdAt: "2026-01-01T00:00:00Z",
+      turnId: "to",
+      promptIndex: 1,
+    });
+    const rows = derivePromptHistoryRows(
+      [newer, older],
+      [turn({ id: "to", completedAt: "not-a-timestamp" })],
+      true,
+    );
+    expect(rows[1]?.durationSeconds).toBe(4);
   });
 
   it("suppresses durations until turns hydrate", () => {

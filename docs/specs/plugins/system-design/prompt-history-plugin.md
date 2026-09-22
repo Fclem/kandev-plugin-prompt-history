@@ -122,8 +122,12 @@ Module layout:
   renders it on every loading render), the row bubble's 44 px mobile
   minimum with its desktop release (the core's `min-h-11 md:min-h-0`)
   and a focusable full-row navigate `<button>` (the core's `min-h-11`),
-  both supplied by `ui/plugin.css`, and `aria-describedby` pointing at an
-  `sr-only` row label whose text is the row `aria-label`, and a real
+  both supplied by `ui/plugin.css`, and `aria-describedby` on the navigate
+  `<button>` pointing at an `sr-only` span that holds the row's prompt
+  content, so the button keeps the row label as its name and gains the
+  prompt itself as its description (deliberate a11y delta: the core puts
+  the row label in that element and describes its bubble, expand, and
+  navigate controls with it), and a real
   `<button>` expand control with `aria-expanded`, a catalog `aria-label`,
   and the three-context size matrix (desktop/tablet+fine pointer 24x24
   px, desktop/tablet+coarse pointer and phone-width+fine pointer each at
@@ -131,20 +135,31 @@ Module layout:
   px and 44 px); phone-width+fine-pointer sizing is a control-sizing/
   mobile accessibility delta from the core's pointer-only implementation
   (the parity spec's role-based queries and 44 px tap-target
-  assertions depend on these; the rendered component suite asserts the
-  expand control's size across the three-context matrix). Deliberate
-  delta: the plugin also puts `role="status"` on the empty state; the
-  core's empty and passthrough states are plain divs with no role.
+  assertions depend on these). The matrix itself lives only in
+  `ui/plugin.css`: the parity spec's mobile run asserts the 44 px branch
+  through `boundingBox()`, and the 24 px fine-pointer branch has no
+  automated assertion. Deliberate delta: the plugin also puts
+  `role="status"` on the empty state; the core's empty and passthrough
+  states are plain divs with no role.
 - `ui/plugin.css` — the plugin-owned stylesheet, declared as
   `ui.styles: ["/ui/plugin.css"]` in the manifest. The bundle is built in a
   separate repository and imported at runtime from
   `/api/plugins/{id}/bundle`, so the host's build never sees it and
   no utility in the host's Tailwind sources applies to it; the stylesheet
-  therefore owns every class it renders (the host's `@source` globs in
-  `apps/web/app/globals.css` cover only `apps/web/components/**` and
-  `apps/packages/ui/src/**`). It uses namespaced class names and kandev CSS
+  therefore owns every `ph-plugin-*` class it renders (the host's `@source`
+  globs in `apps/web/app/globals.css` cover only
+  `apps/web/components/**` and `apps/packages/ui/src/**`). The row bubble is
+  the one exception by design: it also carries the host's global
+  `markdown-body` and `markdown-body-user` classes, which the host always
+  loads, so prompt text renders exactly as it does in the transcript. It uses
+  namespaced class names and kandev CSS
   custom properties for theme fidelity, mirroring `kandev-plugin-voice`
-  (`ui/plugin.css` + `ui.styles`).
+  (`ui/plugin.css` + `ui.styles`). Row height follows the pointer: the
+  compact desktop row (`min-height: 0`) is scoped to
+  `(min-width: 768px) and (pointer: fine)`, so a coarse-pointer desktop or
+  tablet keeps the 44 px row and the 44 px expand control is not clipped by
+  the bubble's `overflow: hidden` (measured in Chromium at 1024 px: a 33 px
+  bubble left the top and bottom of the nominal 44 px target unhittable).
 - `ui/src/derive.ts` — pure entry derivation from the Host DTOs: `#N`
   ordinal from `promptIndex`, agent-sent flag from `senderTaskId`, and
   duration bounded by the earlier of turn completion and the
@@ -181,17 +196,19 @@ Module layout:
   `react` package, and `test-host` passes that same module to `setHost`;
   only the esbuild production build aliases `react`/`react-jsx-runtime`
   to `react-shim.ts`) plus controlled
-  ResizeObserver/IntersectionObserver and fake timers; the suite covers
+  ResizeObserver/IntersectionObserver; the suite covers
   initial load, retry/recovery, in-flight pagination suppression,
   loading grace, expansion/40% cap, favorites/live updates, and terminal
   removal, plus indicator placement (non-scrollable content renders the
   indicator in flow, scrollable content renders it as the floating
-  indicator), older-page appends while the sentinel is active preserving
-  bottom anchoring, and the expand control's size across the three-context
-  matrix (desktop/tablet+fine pointer 24x24 px, desktop/tablet+coarse
-  pointer and phone-width+fine pointer each at least 44x44 px);
+  indicator) and older-page appends while the sentinel is active preserving
+  bottom anchoring;
   `panel.tsx` is also rendered by the
-  throwaway parity spec for cross-repository production-artifact parity.
+  throwaway parity spec for cross-repository production-artifact parity, and
+  `ui/src/bundle.test.ts` smoke-mounts the built `ui/bundle.js` (built by the
+  suite's global setup) through its host-global registration and
+  `initialize`, so the esbuild React aliases and the registration payload are
+  covered as the host consumes them rather than only through `src/` imports.
 - `ui/src/strings.ts` — translation catalogs (en plus every supported locale
   and the pseudo locale), registered through
   `registry.registerTranslations`. Catalog shape is pinned: flat keys
@@ -200,7 +217,16 @@ Module layout:
   AC-002.10 requires all six), at most 1000 messages per locale and 4096
   characters
   per message; a violation throws at `initialize` and aborts every
-  registration.
+  registration. Except for the panel title, every value matches the pinned
+  core `task.json` catalogs character-for-character in all six locales. The
+  title is a recorded delta: `panelTitle` reads `"Prompt History"` (canonical
+  capitalisation, matching the core layout constant that names the saved
+  panel), where the core's localized `task:promptHistory` copy reads
+  `"Prompt history"`, and the plugin's pseudo title uses different glyphs for
+  `h`/`i` than the host's pseudo generator emits. The title is display-only
+  (the panel's layout identity is its `plugin:<id>:prompt-history` key), so
+  the difference shows only as casing in the desktop "+" menu and the mobile
+  Panels picker.
 - `ui/src/host.ts` — re-exports the `@kandev/plugin-sdk` types (the
   `file:../../kdlbs-kandev/apps/packages/plugin-sdk` dependency in
   `ui/package.json`) instead of restating the contract, so
@@ -218,6 +244,15 @@ Module layout:
 - `ui/src/test-host.ts` — Host mock for the vitest suite: fake
   `useSessionMessages`/`useSessionTurns` state machines, `openMessage`
   outcomes, `host.ui.PromptMentionText`, and `host.utils.formatRelativeTime`.
+  The messages hook applies the query's observable shaping rather than handing
+  back the store unchanged: the session scope, the task scope (an omitted
+  `taskId` falls back to the panel's task, as the facade's `resolveTaskId`
+  does), `authorTypes`, `sort` and `pageSize`. A query that names another
+  session or task therefore drops those rows in the suite exactly as the
+  facade's scoped request would. Favorites are stored and queried per session,
+  matching the facade's `bySession[sessionId][messageId]` lookup, and the
+  relative-time formatter derives its answer from the value it is given, so
+  the panel's arguments are observable rather than assumed.
 
 ## Data and contracts
 
@@ -290,7 +325,10 @@ The panel mirrors the core's pagination and reveal behavior:
 - A minimum 400 ms loading-indicator display window keeps back-to-back
   auto-loads readable as one indicator.
 - The loading indicator floats or renders in-flow based on measured
-  scrollability, and the view sticks to the bottom while older pages load.
+  scrollability, and the view sticks to the bottom while older pages load. Its
+  minimum-display grace bridges a settled page into the next chained one, so a
+  rejected page - which leaves no request in flight and no re-armed successor -
+  suppresses it: the error status is reported instead of a loading claim.
 - The sentinel uses `rootMargin: "0px 0px 200px 0px"`; the Host facade joins
   concurrent older-page loads for the same continuation, and the panel's
   sentinel must not re-issue a load already in flight. (The core's
@@ -301,9 +339,22 @@ The panel mirrors the core's pagination and reveal behavior:
 
 - The messages hook's `error` renders the retry surface only when no rows
   are committed (mirroring the core `fetchFailed && entries.length === 0`
-  condition); with committed rows, the rows render without a retry
-  affordance. `retry()` re-runs the Host facade's recovery. The turns hook's
-  `error` is not surfaced.
+  condition) and only when the error is retryable: the facade's `retry()`
+  returns early unless `error.retryable` (`unauthenticated` and
+  `invalid_query` are explicitly not), so a non-retryable failure renders its
+  status without a control that could not do anything. With committed rows,
+  the rows render without a retry affordance. `retry()` re-runs the Host
+  facade's recovery. The turns hook's `error` is not surfaced.
+- A *continuation* failure is not terminal: the pinned facade keeps the
+  committed rows, the continuation cursor and `hasMore`, stores a retryable
+  `error`, and leaves `loadMore` usable (its guard is scope, `removed`,
+  `hasMore` and the cursor; the loader's early `throw` is the query-level
+  `taskId` error, not this one). So with rows on screen the panel recovers by
+  retrying the continuation through a user gesture or an observed sentinel
+  exit and re-entry (which clears the disarm), and the facade clears `error`
+  on the successful page. The post-commit geometry recheck does not recover
+  it: a rejected page sets the disarm, and `recheck()` bails while disarmed.
+  Only the zero-rows case needs the visible retry surface.
 - `removed` is the Host facade's terminal state, not a parity-reference
   state: the core panel unmounts with the task, so the plugin's "rows stay
   visible, `hasMore` false" behavior is the accepted delta. On `removed`,

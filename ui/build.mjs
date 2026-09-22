@@ -1,6 +1,7 @@
 import esbuild from "esbuild";
+import { fileURLToPath } from "node:url";
 
-const reactShim = new URL("./src/react-shim.ts", import.meta.url).pathname;
+const reactShim = fileURLToPath(new URL("./src/react-shim.ts", import.meta.url));
 
 await esbuild.build({
   bundle: true,
@@ -8,8 +9,8 @@ await esbuild.build({
   target: "es2020",
   logLevel: "warning",
   minify: true,
-  outfile: new URL("./bundle.js", import.meta.url).pathname,
-  entryPoints: [new URL("./src/index.tsx", import.meta.url).pathname],
+  outfile: fileURLToPath(new URL("./bundle.js", import.meta.url)),
+  entryPoints: [fileURLToPath(new URL("./src/index.tsx", import.meta.url))],
   alias: {
     react: reactShim,
     "react/jsx-runtime": reactShim,
