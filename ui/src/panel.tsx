@@ -138,9 +138,14 @@ function PromptHistoryRow({
   useEffect(() => {
     const text = textRef.current;
     if (!text) return;
-    const observer = new ResizeObserver(updateOverflow);
-    observer.observe(text);
-    return () => observer.disconnect();
+    const resizeObserver = new ResizeObserver(updateOverflow);
+    const mutationObserver = new MutationObserver(updateOverflow);
+    resizeObserver.observe(text);
+    mutationObserver.observe(text, { childList: true, subtree: true, characterData: true });
+    return () => {
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+    };
   }, [updateOverflow]);
 
   const showToggle = overflow || expanded;
@@ -656,8 +661,7 @@ export function PromptHistoryPanel(props: PluginTaskPanelProps) {
   // bridge, so the grace must not keep claiming older messages are loading.
   const showLoading =
     shouldAutoLoad &&
-    !messagesState.error &&
-    (messagesState.loadingMore || showLoadingGrace);
+    (messagesState.loadingMore || (!messagesState.error && showLoadingGrace));
 
   const { sentinelRef, onUserGesture, recheck, restorePinnedPosition } =
     usePanelOlderPromptSentinel({

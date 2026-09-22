@@ -74,7 +74,7 @@ package: ui
 	GOOS=darwin  GOARCH=amd64 go build -o $(STAGE)/server/plugin-darwin-amd64      ./server
 	GOOS=darwin  GOARCH=arm64 go build -o $(STAGE)/server/plugin-darwin-arm64      ./server
 	GOOS=windows GOARCH=amd64 go build -o $(STAGE)/server/plugin-windows-amd64.exe ./server
-	cd $(KANDEV_SDK) && go run ./cmd/plugin-pack -dir $(CURDIR)/$(STAGE) -out $(CURDIR)/$(PKG_OUT)
+	cd "$(KANDEV_SDK)" && go run ./cmd/plugin-pack -dir "$(CURDIR)/$(STAGE)" -out "$(CURDIR)/$(PKG_OUT)"
 	rm -rf $(STAGE)
 	@echo "Wrote $(PKG_OUT)"
 
@@ -87,7 +87,7 @@ package-host: ui
 	cp ui/bundle.js $(STAGE)/ui/bundle.js
 	cp ui/plugin.css $(STAGE)/ui/plugin.css
 	go build -o $(STAGE)/server/plugin-$$(go env GOOS)-$$(go env GOARCH)$$(go env GOEXE) ./server
-	cd $(KANDEV_SDK) && go run ./cmd/plugin-pack -dir $(CURDIR)/$(STAGE) -out $(CURDIR)/$(PKG_OUT) -platform-only
+	cd "$(KANDEV_SDK)" && go run ./cmd/plugin-pack -dir "$(CURDIR)/$(STAGE)" -out "$(CURDIR)/$(PKG_OUT)" -platform-only
 	rm -rf $(STAGE)
 	@echo "Wrote $(PKG_OUT)"
 
@@ -98,7 +98,7 @@ package-host: ui
 ## path, so the declared contract itself is checked separately by
 ## `go test ./server/...` (server/manifest_contract_test.go).
 verify-package: package
-	@tmp="$$(mktemp -d)"; trap 'rm -rf "$$tmp"' EXIT; \
+	@tmp="$$(mktemp -d)"; trap 'rm -rf "$$tmp"' EXIT; set -eu; \
 		tar -xzf "$(PKG_OUT)" -C "$$tmp"; \
 		test -f "$$tmp/manifest.yaml"; \
 		test -f "$$tmp/ui/bundle.js"; \
@@ -121,7 +121,7 @@ verify-package: package
 
 ## Faster equivalent for local/CI host-platform packaging.
 verify-package-host: package-host
-	@tmp="$$(mktemp -d)"; trap 'rm -rf "$$tmp"' EXIT; \
+	@tmp="$$(mktemp -d)"; trap 'rm -rf "$$tmp"' EXIT; set -eu; \
 		tar -xzf "$(PKG_OUT)" -C "$$tmp"; \
 		host_executable="plugin-$$(go env GOOS)-$$(go env GOARCH)$$(go env GOEXE)"; \
 		test -f "$$tmp/manifest.yaml"; \
