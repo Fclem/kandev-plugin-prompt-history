@@ -644,10 +644,16 @@ describe("PromptHistoryPanel", () => {
   });
 
   it("renders user-prompt rows with ordinals, agent flags, send time, and durations", () => {
+    // Ages are rendered from the prompt's send time against the wall clock, so
+    // the fixture pins them relative to now (5 minutes and 2 hours back) with
+    // enough margin that no bucket boundary can be crossed mid-test.
+    const now = Date.now();
+    const newestCreatedAt = new Date(now - 5 * 60_000).toISOString();
+    const olderCreatedAt = new Date(now - 2 * 60 * 60_000).toISOString();
     const newest = message({
       id: "newest",
       content: "newest prompt",
-      createdAt: "2026-01-01T00:00:02Z",
+      createdAt: newestCreatedAt,
       turnId: "tn",
       promptIndex: 2,
       senderTaskId: "other",
@@ -655,7 +661,7 @@ describe("PromptHistoryPanel", () => {
     const older = message({
       id: "older",
       content: "older prompt",
-      createdAt: "2026-01-01T00:00:00Z",
+      createdAt: olderCreatedAt,
       turnId: "to",
       promptIndex: 1,
     });
@@ -666,17 +672,17 @@ describe("PromptHistoryPanel", () => {
           id: "tn",
           taskId: "t",
           sessionId: "s",
-          startedAt: "2026-01-01T00:00:02Z",
-          completedAt: "2026-01-01T00:00:05Z",
-          updatedAt: "2026-01-01T00:00:05Z",
+          startedAt: newestCreatedAt,
+          completedAt: new Date(now - 5 * 60_000 + 3_000).toISOString(),
+          updatedAt: new Date(now - 5 * 60_000 + 3_000).toISOString(),
         },
         {
           id: "to",
           taskId: "t",
           sessionId: "s",
-          startedAt: "2026-01-01T00:00:00Z",
-          completedAt: "2026-01-01T00:00:01Z",
-          updatedAt: "2026-01-01T00:00:01Z",
+          startedAt: olderCreatedAt,
+          completedAt: new Date(now - 2 * 60 * 60_000 + 1_000).toISOString(),
+          updatedAt: new Date(now - 2 * 60 * 60_000 + 1_000).toISOString(),
         },
       ]),
     );
@@ -692,15 +698,52 @@ describe("PromptHistoryPanel", () => {
     // Only the agent-sent row carries the glyph.
     expect(document.querySelector('[data-message-id="newest"] .ph-plugin-agent-icon')).toBeTruthy();
     expect(document.querySelector('[data-message-id="older"] .ph-plugin-agent-icon')).toBeNull();
-    // Send time and duration.
-    // The displayed text and its title both come from the prompt's send time.
-    expect(screen.getByText(`relative:${newest.createdAt}`)).toBeTruthy();
-    expect(screen.getByText(`relative:${older.createdAt}`)).toBeTruthy();
-    expect(
-      document.querySelector(`time[dateTime="${newest.createdAt}"]`)?.getAttribute("title"),
-    ).toBe(`relative:${newest.createdAt}`);
+    // Age: the compact reference ladder, never the host's "5 minutes ago".
+    const newestTime = document.querySelector(`time[dateTime="${newestCreatedAt}"]`);
+    expect(newestTime?.textContent).toBe("5m");
+    expect(document.querySelector(`time[dateTime="${olderCreatedAt}"]`)?.textContent).toBe("2h");
+    // The hover title keeps the host's locale-aware long form.
+    expect(newestTime?.getAttribute("title")).toBe(`relative:${newestCreatedAt}`);
     expect(screen.getByText("3s")).toBeTruthy();
     expect(screen.getByText("1s")).toBeTruthy();
+  });
+
+  it("gives every row glyph intrinsic dimensions", () => {
+    // The host injects the stylesheet un-versioned, so a stale or missing
+    // `plugin.css` is a reachable runtime state; an inline SVG with a viewBox
+    // and no intrinsic size then renders at container width (measured >1300 px
+    // in Chromium), which is the reported giant clock. Attributes keep the
+    // glyphs at their intended size regardless of the stylesheet's state.
+    const newest = message({
+      id: "newest",
+      content: "newest prompt",
+      createdAt: "2026-01-01T00:00:02Z",
+      turnId: "tn",
+      promptIndex: 2,
+      senderTaskId: "other",
+    });
+    renderPanel(
+      makeMessages([newest], { hasMore: false }),
+      makeTurns([
+        {
+          id: "tn",
+          taskId: "t",
+          sessionId: "s",
+          startedAt: "2026-01-01T00:00:02Z",
+          completedAt: "2026-01-01T00:00:05Z",
+          updatedAt: "2026-01-01T00:00:05Z",
+        },
+      ]),
+    );
+    const intrinsicSize = (selector: string) => {
+      const svg = document.querySelector(selector);
+      return [svg?.getAttribute("width"), svg?.getAttribute("height")];
+    };
+    // 12 px for the clock/hourglass and 14 px for the robot, matching the
+    // parity reference's `h-3 w-3` / `h-3.5 w-3.5`.
+    expect(intrinsicSize(".ph-plugin-row-time svg")).toEqual(["12", "12"]);
+    expect(intrinsicSize(".ph-plugin-duration svg")).toEqual(["12", "12"]);
+    expect(intrinsicSize(".ph-plugin-agent-icon")).toEqual(["14", "14"]);
   });
 
   it("adds a duration when a live turn completes", () => {

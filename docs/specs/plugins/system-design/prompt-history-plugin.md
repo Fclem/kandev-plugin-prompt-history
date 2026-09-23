@@ -43,7 +43,8 @@ Manifest fields, per the [manifest reference](../../../public/plugins-manifest.m
 - `id: "kandev-plugin-prompt-history"`, `api_version: 2`,
   `version: "0.1.0"`, `display_name: "Prompt History"`, a one-line
   `description`, `author: "kandev"`, `categories: ["tools"]`, and
-  `repo_url: "https://github.com/kdlbs/kandev-plugin-prompt-history"`.
+  `repo_url: "https://github.com/Fclem/kandev-plugin-prompt-history"` (the
+  publishing repo; the scaffold's `kdlbs/…` placeholder 404s).
 - `min_kandev_version` — the first release carrying the browser
   conversation facade (PR #3588). `0.91.1` is only the `messages`
   capability audit floor (`MinimumMessagesCapabilityVersion`); as of this
@@ -91,7 +92,19 @@ Module layout:
   `initialize(registry, host)` calls `setHost(host)` before registering
   the task panel and translations, and `destroy()` calls `clearHost()` so
   a same-tab disable/enable cycle starts clean (AC-001.4); the
-  registrations are repeatable across enable/disable cycles.
+  registrations are repeatable across enable/disable cycles. It also pins
+  the plugin's own host-injected stylesheet: the host injects `ui.styles`
+  as `link[rel=stylesheet][data-plugin-id=<id>]` carrying the bare
+  manifest path, while the bundle URL it loads *is* versioned (`?v=`), so
+  the stylesheet URL stayed identical across releases and the browser kept
+  serving the previous release's CSS against the new markup — an updated
+  plugin rendered the old bubble colour and left the new SVG glyphs
+  unsized (Chromium: >1300 px, the reported "giant icons").
+  `initialize` re-points each of this plugin's links at `?v=<manifest
+  version>`, inlined by `ui/build.mjs` as `__PLUGIN_VERSION__`; an
+  already-versioned href and other plugins' links are left untouched, and
+  the re-point is a no-op when the version is absent (a direct
+  `src/index.tsx` import under vitest).
 - `ui/src/panel.tsx` — the `PromptHistoryPanel` component, registered with
   panel key `prompt-history` (layout id
   `plugin:kandev-plugin-prompt-history:prompt-history`), a `titleKey`
@@ -112,7 +125,20 @@ Module layout:
   the accepted cost that the desktop "+" menu and the mobile Panels picker
   offer the panel on passthrough sessions, opening an empty panel. Renders
   rows (including the agent-sent indicator as an inline SVG glyph, since
-  `host.ui` exposes no icon primitive), loading, empty, error, passthrough,
+  `host.ui` exposes no icon primitive — the glyph geometry is copied
+  verbatim from the parity reference's own icon set, `@tabler/icons-react`
+  v3.36.1 (`IconRobot`/`IconClock`/`IconHourglass`/`IconChevron*`), because a
+  hand-drawn approximation is never pixel-identical to the reference — the
+  original hand-rolled hourglass (straight-sided glass) was visibly a
+  different icon. Every row glyph is rendered with
+  intrinsic `width`/`height` attributes (12 px clock/hourglass, 14 px
+  robot and chevrons) mirroring the reference's `h-3 w-3` / `h-3.5 w-3.5` /
+  `size={14}`: an inline `<svg>` with a `viewBox` and no intrinsic size
+  sizes itself to its container, so a stale or missing `plugin.css` — a
+  reachable state, see the stylesheet version pinning above — rendered the
+  glyphs at panel width instead of at icon size. `ui/plugin.css` still
+  wins over the attributes and remains the styling source of truth),
+  loading, empty, error, passthrough,
   and removed states; owns expansion state keyed by message id. State
   determination and `openMessage` outcome handling delegate to the
   pure `ui/src/panel-state.ts` seam. Test ids use
@@ -154,7 +180,19 @@ Module layout:
   loads, so prompt text renders exactly as it does in the transcript. It uses
   namespaced class names and kandev CSS
   custom properties for theme fidelity, mirroring `kandev-plugin-voice`
-  (`ui/plugin.css` + `ui.styles`). Row height follows the pointer: the
+  (`ui/plugin.css` + `ui.styles`). Because the host injects this file
+  without a cache key, `initialize` re-points it at the running bundle's
+  version (see `ui/src/index.tsx` above) and the row glyphs carry
+  intrinsic sizes (see `ui/src/panel.tsx` above) so neither a stale nor a
+  missing stylesheet can render the earlier release's colours or
+  container-wide icons. Two measured parity rules the stylesheet must keep:
+  the row bubble's radius comes from the host's `--radius` token, never a
+  literal — every radius utility in the host theme (`rounded-md`/`xl`/`2xl`,
+  i.e. the reference's `rounded-2xl`) resolves to that token, measured at
+  6 px in the shipping host, and a literal `1rem` rendered the bubble
+  visibly rounder than the reference; and the stylesheet must not override
+  the host's font properties (no `font-variant-numeric`, which made the
+  meta digits wider than the reference). Row height follows the pointer: the
   compact desktop row (`min-height: 0`) is scoped to
   `(min-width: 768px) and (pointer: fine)`, so a coarse-pointer desktop or
   tablet keeps the 44 px row and the 44 px expand control is not clipped by
@@ -364,6 +402,16 @@ The panel mirrors the core's pagination and reveal behavior:
 - Duration derivation uses whichever bound exists (turn completion or the
   next prompt's send time); a row with no bound shows no duration, matching
   the core `durationSeconds === null` branch.
+- A row's *age* is the compact reference ladder — `just now`, `5m`, `5h`,
+  `3d` — never the host's `utils.formatRelativeTime`, which is
+  `Intl.RelativeTimeFormat` and always phrases a magnitude ("5 minutes
+  ago") where the reference deliberately reads `formatRelativeCompact`
+  (the row already carries the hourglass duration). Only
+  `formatRelativeTime` is exposed to plugins, so the ladder is reproduced
+  in `ui/src/derive.ts` (`formatPromptAge`) with the reference's buckets
+  (floored seconds/minutes, 60 s / 60 m / 24 h boundaries) and the
+  plugin's own catalog labels; the `title` keeps the host's locale-aware
+  long form.
 
 ## Persistence
 

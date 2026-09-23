@@ -12,7 +12,7 @@ version: "0.2.0"
 display_name: "Prompt History"
 description: "Task panel listing the active session's user prompts with parity to the shipped core panel."
 author: "kandev"
-repo_url: "https://github.com/kdlbs/kandev-plugin-prompt-history"
+repo_url: "https://github.com/Fclem/kandev-plugin-prompt-history"
 categories: ["tools"]
 
 # min_kandev_version is the oldest kandev release this plugin will install

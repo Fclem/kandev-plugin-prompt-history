@@ -37,7 +37,12 @@ instance via **Settings > Plugins**.
   never sees it and no utility in the host's Tailwind sources applies to it).
   The row bubble deliberately also reuses the host's global `markdown-body`
   and `markdown-body-user` classes, which the host's `globals.css` always
-  loads, so prompt text renders exactly as it does in the transcript.
+  loads, so prompt text renders exactly as it does in the transcript. The
+  host injects the stylesheet without a cache key while the bundle URL is
+  versioned, so `initialize` re-points this plugin's `<link>` at
+  `?v=<manifest version>`; the row glyphs additionally carry intrinsic
+  `width`/`height` so a stale or missing stylesheet cannot render them at
+  container width.
 - **Localized copy** — every user-facing string resolves through the plugin
   translation catalog (`ui/src/strings.ts`) with an English fallback; catalogs
   exist for `en`, `pt-pt`, `zh-cn`, `zh-hk`, `zh-tw`, and `pseudo`.

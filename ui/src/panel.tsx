@@ -13,6 +13,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import type { PluginTaskPanelProps } from "./host";
 import {
   derivePromptHistoryRows,
+  formatPromptAge,
   formatPromptDuration,
   type PromptHistoryRow,
 } from "./derive";
@@ -35,41 +36,64 @@ let nextDescriptionId = 0;
 
 type PanelIconName = "robot" | "clock" | "hourglass" | "chevron-up" | "chevron-down";
 
-function PanelIcon({ className, name }: { className: string; name: PanelIconName }) {
-  let content: React.ReactNode;
-  switch (name) {
-    case "robot":
-      content = (
-        <>
-          <path d="M7 7h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" />
-          <path d="M9 11h.01M15 11h.01M9.5 15.5c.658.329 1.491.5 2.5.5s1.842-.171 2.5-.5M9 7 8 3M15 7l1-4" />
-        </>
-      );
-      break;
-    case "clock":
-      content = (
-        <>
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 7v5l3 3" />
-        </>
-      );
-      break;
-    case "hourglass":
-      content = (
-        <path d="M6.5 4h11M6.5 20h11M8 4c0 4.5 1.5 6 4 8-2.5 2-4 3.5-4 8M16 4c0 4.5-1.5 6-4 8 2.5 2 4 3.5 4 8" />
-      );
-      break;
-    case "chevron-up":
-      content = <path d="m6 15 6-6 6 6" />;
-      break;
-    case "chevron-down":
-      content = <path d="m6 9 6 6 6-6" />;
-      break;
-  }
+/** Intrinsic pixel size per glyph, mirroring the parity reference's icon
+ * classes (`h-3 w-3` for the clock/hourglass, `h-3.5 w-3.5` for the robot,
+ * `size={14}` for the chevrons).
+ *
+ * These are rendered as `width`/`height` attributes, not only as the
+ * stylesheet's `width`/`height` declarations, because an inline `<svg>` with
+ * a `viewBox` and no intrinsic dimensions sizes itself to its container: with
+ * a stale or missing `plugin.css` the glyphs rendered at panel width (over
+ * 1300 px in Chromium), which is what "the icons are way too big" was. The
+ * reference gets this for free — `@tabler/icons-react` always emits explicit
+ * `width`/`height` — so a plugin drawing its own glyphs has to match it. CSS
+ * still wins over the attribute, so `ui/plugin.css` remains the styling
+ * source of truth (`ph-plugin-meta-icon` etc.). */
+const PANEL_ICON_SIZES: Record<PanelIconName, number> = {
+  robot: 14,
+  clock: 12,
+  hourglass: 12,
+  "chevron-up": 14,
+  "chevron-down": 14,
+};
 
+/** Glyph geometry copied verbatim from the parity reference's icon set,
+ * `@tabler/icons-react` v3.36.1, which the core panel renders through
+ * `IconRobot` / `IconClock` / `IconHourglass` / `IconChevron*`. Drawing our
+ * own approximations diverged in shape (the hourglass was the visible one:
+ * straight-sided glass vs the reference's rounded body with neck bars), and a
+ * hand-rolled glyph can never be pixel-identical to the reference. Tabler
+ * icons are MIT-licensed; the paths are inlined because the bundle is built
+ * in this repository and only `react`/`react-dom` are host-aliased. */
+const PANEL_ICON_PATHS: Record<PanelIconName, string[]> = {
+  robot: [
+    "M6 6a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v4a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2l0 -4",
+    "M12 2v2",
+    "M9 12v9",
+    "M15 12v9",
+    "M5 16l4 -2",
+    "M15 14l4 2",
+    "M9 18h6",
+    "M10 8v.01",
+    "M14 8v.01",
+  ],
+  clock: ["M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0", "M12 7v5l3 3"],
+  hourglass: [
+    "M6.5 7h11",
+    "M6.5 17h11",
+    "M6 20v-2a6 6 0 1 1 12 0v2a1 1 0 0 1 -1 1h-10a1 1 0 0 1 -1 -1",
+    "M6 4v2a6 6 0 1 0 12 0v-2a1 1 0 0 0 -1 -1h-10a1 1 0 0 0 -1 1",
+  ],
+  "chevron-up": ["M6 15l6 -6l6 6"],
+  "chevron-down": ["M6 9l6 6l6 -6"],
+};
+
+function PanelIcon({ className, name }: { className: string; name: PanelIconName }) {
   return (
     <svg
       className={className}
+      width={PANEL_ICON_SIZES[name]}
+      height={PANEL_ICON_SIZES[name]}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -78,7 +102,9 @@ function PanelIcon({ className, name }: { className: string; name: PanelIconName
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      {content}
+      {PANEL_ICON_PATHS[name].map((d) => (
+        <path key={d} d={d} />
+      ))}
     </svg>
   );
 }
@@ -213,7 +239,12 @@ function PromptHistoryRow({
       <div className="ph-plugin-row-meta">
         <time dateTime={row.sentAt} title={formatRelativeTime(row.sentAt)} className="ph-plugin-row-time">
           <PanelIcon className="ph-plugin-meta-icon" name="clock" />
-          {formatRelativeTime(row.sentAt)}
+          {formatPromptAge(row.sentAt, {
+            justNow: t("promptAgeJustNow"),
+            m: t("durationUnitMinutes"),
+            h: t("durationUnitHours"),
+            d: t("durationUnitDays"),
+          })}
         </time>
         {row.durationSeconds !== null && (
           <span className="ph-plugin-duration" data-testid={`ph-plugin-duration-${index}`}>

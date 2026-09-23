@@ -16,6 +16,37 @@ import {
 import { PromptHistoryPanel } from "./panel";
 import { CATALOGS } from "./strings";
 
+/** The release version from `manifest.yaml`, inlined by `ui/build.mjs`.
+ * Undefined when this module is imported directly (the test suite), where the
+ * stylesheet re-point below is exercised against a stubbed global. */
+declare const __PLUGIN_VERSION__: string;
+
+/**
+ * Pins this plugin's host-injected stylesheets to the running bundle's version.
+ *
+ * The host injects `ui.styles` as `<link rel="stylesheet" data-plugin-id=…>`
+ * with the manifest's bare path, while the bundle it loads *is* versioned
+ * (`?v=<version>`, see `toActivePlugin`). The stylesheet URL therefore stayed
+ * identical across releases and the browser kept serving the previous
+ * release's CSS against the new markup: an updated plugin painted last
+ * version's bubble and left the new SVG glyphs unsized (rendered at container
+ * width). Re-pointing each of our own links at `?v=<version>` gives the
+ * stylesheet the same cache key the bundle already has.
+ *
+ * Only links the host tagged for this plugin are touched — foreign plugins'
+ * stylesheets are never rewritten — and an already-versioned href is left
+ * alone so a host that starts versioning style URLs itself stays in charge.
+ */
+function versionPluginStylesheets(version: string): void {
+  if (!version || typeof document === "undefined") return;
+  document
+    .querySelectorAll<HTMLLinkElement>(`link[rel="stylesheet"][data-plugin-id="${PLUGIN_ID}"]`)
+    .forEach((link) => {
+      if (link.href.includes("v=")) return;
+      link.href = `${link.href}${link.href.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
+    });
+}
+
 /**
  * A bundled icon component. The registration `icon` accepts a plugin-owned
  * component; no curated history glyph exists, so a string name would fall
@@ -45,6 +76,11 @@ function HistoryIcon() {
 const plugin = {
   initialize(registry: PluginRegistry, host: PluginHost): void {
     setHost(host);
+
+    // The host injects this plugin's stylesheet before it imports the bundle
+    // (see `injectStyles` in the host's `lib/plugins/host.ts`), so our own
+    // `<link>` is already in the document here and can be versioned.
+    versionPluginStylesheets(typeof __PLUGIN_VERSION__ === "string" ? __PLUGIN_VERSION__ : "");
 
     // Register the translation catalog. The host requires an English fallback
     // and validates the key shape, message count, and length; a violation
