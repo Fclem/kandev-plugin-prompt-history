@@ -125,7 +125,12 @@ Module layout:
   the accepted cost that the desktop "+" menu and the mobile Panels picker
   offer the panel on passthrough sessions, opening an empty panel. Renders
   rows (including the agent-sent indicator as an inline SVG glyph, since
-  `host.ui` exposes no icon primitive — every row glyph is rendered with
+  `host.ui` exposes no icon primitive — the glyph geometry is copied
+  verbatim from the parity reference's own icon set, `@tabler/icons-react`
+  v3.36.1 (`IconRobot`/`IconClock`/`IconHourglass`/`IconChevron*`), because a
+  hand-drawn approximation is never pixel-identical to the reference — the
+  original hand-rolled hourglass (straight-sided glass) was visibly a
+  different icon. Every row glyph is rendered with
   intrinsic `width`/`height` attributes (12 px clock/hourglass, 14 px
   robot and chevrons) mirroring the reference's `h-3 w-3` / `h-3.5 w-3.5` /
   `size={14}`: an inline `<svg>` with a `viewBox` and no intrinsic size
@@ -397,6 +402,16 @@ The panel mirrors the core's pagination and reveal behavior:
 - Duration derivation uses whichever bound exists (turn completion or the
   next prompt's send time); a row with no bound shows no duration, matching
   the core `durationSeconds === null` branch.
+- A row's *age* is the compact reference ladder — `just now`, `5m`, `5h`,
+  `3d` — never the host's `utils.formatRelativeTime`, which is
+  `Intl.RelativeTimeFormat` and always phrases a magnitude ("5 minutes
+  ago") where the reference deliberately reads `formatRelativeCompact`
+  (the row already carries the hourglass duration). Only
+  `formatRelativeTime` is exposed to plugins, so the ladder is reproduced
+  in `ui/src/derive.ts` (`formatPromptAge`) with the reference's buckets
+  (floored seconds/minutes, 60 s / 60 m / 24 h boundaries) and the
+  plugin's own catalog labels; the `title` keeps the host's locale-aware
+  long form.
 
 ## Persistence
 

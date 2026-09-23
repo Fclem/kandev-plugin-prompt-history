@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { derivePromptHistoryRows, formatPromptDuration } from "./derive";
+import { derivePromptHistoryRows, formatPromptAge, formatPromptDuration } from "./derive";
 import type { PluginConversationMessage, PluginConversationTurn } from "./host";
 
 function message(
@@ -166,5 +166,33 @@ describe("formatPromptDuration", () => {
     expect(formatPromptDuration(5, units)).toBe("5s");
     expect(formatPromptDuration(65, units)).toBe("1m 5s");
     expect(formatPromptDuration(3665, units)).toBe("1h 1m 5s");
+  });
+});
+
+describe("formatPromptAge", () => {
+  const units = { justNow: "just now", m: "m", h: "h", d: "d" };
+  const now = Date.parse("2026-09-23T12:00:00Z");
+  const sentAgo = (seconds: number) => new Date(now - seconds * 1000).toISOString();
+
+  it("walks the reference ladder at its bucket boundaries", () => {
+    // Flooring matches the reference: 59.9s is still under a minute.
+    expect(formatPromptAge(sentAgo(59), units, now)).toBe("just now");
+    expect(formatPromptAge(sentAgo(60), units, now)).toBe("1m");
+    expect(formatPromptAge(sentAgo(59 * 60 + 59), units, now)).toBe("59m");
+    expect(formatPromptAge(sentAgo(60 * 60), units, now)).toBe("1h");
+    expect(formatPromptAge(sentAgo(23 * 3600 + 3599), units, now)).toBe("23h");
+    expect(formatPromptAge(sentAgo(24 * 3600), units, now)).toBe("1d");
+    expect(formatPromptAge(sentAgo(72 * 3600), units, now)).toBe("3d");
+  });
+
+  it("never suffixes the age with 'ago'", () => {
+    for (const seconds of [30, 90, 3600, 90_000]) {
+      expect(formatPromptAge(sentAgo(seconds), units, now)).not.toMatch(/ago/);
+    }
+  });
+
+  it("returns an empty label for unusable timestamps", () => {
+    expect(formatPromptAge("", units, now)).toBe("");
+    expect(formatPromptAge("not a date", units, now)).toBe("");
   });
 });

@@ -142,3 +142,42 @@ export function formatPromptDuration(seconds: number, units: PromptDurationUnits
   if (minutes > 0) return `${minutes}${units.m} ${remainingSeconds}${units.s}`;
   return `${remainingSeconds}${units.s}`;
 }
+
+export type PromptAgeUnits = {
+  /** Shown below the first minute, e.g. "just now". */
+  justNow: string;
+  /** Suffixed to the minute count, e.g. "m" in "5m". */
+  m: string;
+  h: string;
+  d: string;
+};
+
+/**
+ * Format a prompt's age as the compact relative label the parity reference's
+ * row shows — `just now` / `5m` / `5h` / `3d`, with no "ago".
+ *
+ * The host's `utils.formatRelativeTime` (the only relative-time helper the
+ * plugin contract exposes) is `Intl.RelativeTimeFormat`, which always phrases
+ * a magnitude — "5 minutes ago" — and the reference deliberately reads
+ * `formatRelativeCompact` instead, because the row already carries the
+ * hourglass/duration affordance. So the ladder is reproduced here from the
+ * plugin's own catalog; the buckets match `formatRelativeCompact` in
+ * `apps/web/lib/i18n/formats.ts` exactly (floor of seconds/minutes, 60s, 60m
+ * and 24h boundaries). `now` is injectable so the buckets are testable.
+ */
+export function formatPromptAge(
+  sentAt: string,
+  units: PromptAgeUnits,
+  now: number = Date.now(),
+): string {
+  if (!sentAt) return "";
+  const sent = Date.parse(sentAt);
+  if (Number.isNaN(sent)) return "";
+  const diffSeconds = Math.floor((now - sent) / 1000);
+  if (diffSeconds < 60) return units.justNow;
+  const minutes = Math.floor(diffSeconds / 60);
+  if (minutes < 60) return `${minutes}${units.m}`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}${units.h}`;
+  return `${Math.floor(hours / 24)}${units.d}`;
+}
