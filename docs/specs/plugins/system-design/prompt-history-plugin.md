@@ -41,7 +41,7 @@ derived `PKG_OUT`, and the `window.registerKandevPlugin` id:
 Manifest fields, per the [manifest reference](../../../public/plugins-manifest.md):
 
 - `id: "kandev-plugin-prompt-history"`, `api_version: 2`,
-  `version: "0.1.0"`, `display_name: "Prompt History"`, a one-line
+  `version: "0.2.1"`, `display_name: "Prompt History"`, a one-line
   `description`, `author: "kandev"`, `categories: ["tools"]`, and
   `repo_url: "https://github.com/Fclem/kandev-plugin-prompt-history"` (the
   publishing repo; the scaffold's `kdlbs/…` placeholder 404s).
@@ -436,7 +436,7 @@ The one-shot proof (per
 runs against a disposable development instance:
 
 1. `make package` in the plugin repo produces
-   `kandev-plugin-prompt-history-0.1.0.tar.gz`; `make verify-package`
+   `kandev-plugin-prompt-history-<version>.tar.gz`; `make verify-package`
    checks contents (including `ui/plugin.css`), checksums, and leak-free
    staging, so the installed five-platform artifact is the artifact
    verified for AC-003.3 (`package-host` writes the same `PKG_OUT`
@@ -473,7 +473,7 @@ runs against a disposable development instance:
    its `ph-plugin-` test ids and layout identity, distinct from the core
    panel's ids.
    Before the runs, copy the already-verified tarball to
-   `.tmp/prompt-history-plugin/kandev-plugin-prompt-history-0.1.0.tar.gz`
+   `.tmp/prompt-history-plugin/kandev-plugin-prompt-history-<version>.tar.gz`
    (an ignored path under REPO_ROOT; the Docker runner mounts only REPO_ROOT
    at /work, so the sibling path is absent in the container), and point
    both throwaway specs at that path; remove the copy after the run, and do
