@@ -6,8 +6,8 @@ VERSION := 1.0.0
 STAGE := .build/stage
 PKG_OUT := kandev-plugin-prompt-history-$(VERSION).tar.gz
 
-# The sibling kandev checkout the `replace` in go.mod points at (see README,
-# "Developing against the SDK"). The packaging step runs plugin-pack from
+# The sibling kandev checkout the `replace` in go.mod points at (see
+# docs/development.md, "Developing against the SDK"). The packaging step runs plugin-pack from
 # INSIDE this directory, i.e. in kandev's own module context, rather than as
 # `go run github.com/kandev/kandev/cmd/plugin-pack` from here. Both spellings
 # work, but the second resolves plugin-pack's dependencies against *this*
