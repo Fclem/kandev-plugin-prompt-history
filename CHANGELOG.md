@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.0] - 2026-09-23
+
+### Changed
+
+- Fix stale plugin stylesheet (grey bubble) and oversized row icons (046821f)
+- Match the host's radius token and font metrics (9ab5189)
+- Use the reference glyphs and the compact prompt age (d7c5766)
+
 ## [0.2.0] - 2026-09-22
 
 ### Changed
