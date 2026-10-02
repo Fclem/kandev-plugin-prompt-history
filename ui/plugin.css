@@ -99,11 +99,22 @@
   cursor: pointer;
 }
 
-.ph-plugin-favorite {
+/* Prompts sent by another task's agent, when the operator opts in
+ * (`display_agent_prompt_grey`): a soft neutral grey that reads in both
+ * themes. Declared before the favorite rules below, which carry the same
+ * specificity, so a favorited agent prompt keeps the favorite highlight. */
+.ph-plugin-row-bubble.ph-plugin-agent {
+  background: color-mix(in srgb, var(--muted-foreground, #71717a) 14%, transparent);
+}
+
+/* Two-class selector on purpose: it must outrank the agent rule above (the
+ * favorite highlight wins over the agent grey, whichever order the classes
+ * appear in the element's class attribute). */
+.ph-plugin-row-bubble.ph-plugin-favorite {
   background: color-mix(in srgb, #fef08a 50%, transparent);
 }
 
-.dark .ph-plugin-favorite {
+.dark .ph-plugin-row-bubble.ph-plugin-favorite {
   background: color-mix(in srgb, #eab308 10%, transparent);
 }
 

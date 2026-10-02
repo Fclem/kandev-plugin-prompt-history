@@ -60,6 +60,17 @@ export class TestHostStore {
   messagesState: PluginSessionMessagesState;
   turnsState: PluginSessionTurnsState;
   favorites = new Set<string>();
+  /** Raw stored config as `GET /api/plugins/<id>/config` returns it inside its
+   * `{ config: ... }` envelope. Empty means the operator never saved settings,
+   * so the panel renders every row affordance (the shown-by-default state). */
+  panelConfig: Record<string, unknown> = {};
+  /** Status the config route answers with; a non-200 exercises the panel's
+   * keep-the-defaults path. */
+  configStatus = 200;
+  /** When true the config read rejects, as an offline or aborted request does. */
+  configFetchRejects = false;
+  /** Paths the panel requested through `host.api.fetch`, in call order. */
+  fetchedPaths: string[] = [];
   openMessageResult: { status: "accepted" | "unavailable" } = { status: "accepted" };
   openedMessageIds: string[] = [];
   mentionActivations = 0;
@@ -141,6 +152,25 @@ export class TestHostStore {
     if (favorite) this.favorites.add(key);
     else this.favorites.delete(key);
     this.emit();
+  }
+
+  /** Answer one scoped `host.api.fetch` call. Only the config route is
+   * exercised by the panel; anything else 404s so a mistyped path is
+   * observable instead of silently reading the defaults. */
+  answerFetch(path: string, init?: RequestInit): Promise<Response> {
+    this.fetchedPaths.push(path);
+    if (init?.signal?.aborted) return Promise.reject(new Error("aborted"));
+    if (this.configFetchRejects) return Promise.reject(new Error("config read failed"));
+    if (path !== "/config") return Promise.resolve(new Response(null, { status: 404 }));
+    if (this.configStatus !== 200) {
+      return Promise.resolve(new Response(null, { status: this.configStatus }));
+    }
+    return Promise.resolve(
+      new Response(JSON.stringify({ config: this.panelConfig }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
   }
 
 
@@ -307,7 +337,9 @@ export function createTestHost(
     },
     api: {
       baseUrl: "",
-      fetch: (_path: string, _init?: RequestInit) => Promise.resolve(new Response(null)),
+      // The panel reads its display settings through here; the store decides
+      // what the config route answers.
+      fetch: (path: string, init?: RequestInit) => store.answerFetch(path, init),
       invokeAction: <T>(_key: string) => Promise.resolve(undefined as T),
     },
     store: {

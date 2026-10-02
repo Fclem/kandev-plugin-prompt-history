@@ -281,8 +281,19 @@ function renderPanel(
   messagesState: PluginSessionMessagesState,
   turnsState: PluginSessionTurnsState,
   overrides: Partial<PluginTaskPanelProps> = {},
+  panelConfig: {
+    /** Stored config as `GET /api/plugins/<id>/config` returns it. */
+    config?: Record<string, unknown>;
+    /** Status the config route answers with (200 unless a test overrides it). */
+    status?: number;
+    /** Make the config read reject, as an offline host does. */
+    rejects?: boolean;
+  } = {},
 ) {
   const store = new TestHostStore(messagesState, turnsState);
+  store.panelConfig = panelConfig.config ?? {};
+  store.configStatus = panelConfig.status ?? 200;
+  store.configFetchRejects = panelConfig.rejects ?? false;
   const { host } = createTestHost(store);
   const props: PluginTaskPanelProps = {
     taskId: "t",
@@ -702,8 +713,15 @@ describe("PromptHistoryPanel", () => {
     const newestTime = document.querySelector(`time[dateTime="${newestCreatedAt}"]`);
     expect(newestTime?.textContent).toBe("5m");
     expect(document.querySelector(`time[dateTime="${olderCreatedAt}"]`)?.textContent).toBe("2h");
-    // The hover title keeps the host's locale-aware long form.
-    expect(newestTime?.getAttribute("title")).toBe(`relative:${newestCreatedAt}`);
+    // The hover carries the absolute date, matching the reference's
+    // `title={formatDateTime(entry.sentAt)}` (short date/short time here); the
+    // compact ladder above is the visible form (the operator can invert the
+    // pair, see the display-settings suite).
+    expect(newestTime?.getAttribute("title")).toBe(
+      new Intl.DateTimeFormat("en", { dateStyle: "short", timeStyle: "short" }).format(
+        new Date(newestCreatedAt),
+      ),
+    );
     expect(screen.getByText("3s")).toBeTruthy();
     expect(screen.getByText("1s")).toBeTruthy();
   });
@@ -2300,5 +2318,246 @@ describe("PromptHistoryPanel", () => {
     renderPanel(makeMessages([], { hydrated: false }), makeTurns([]));
     expect(screen.getByText("Loading...")).toBeTruthy();
     expect(screen.queryByText("No prompts yet.")).toBeNull();
+  });
+});
+
+// ── Operator display settings ───────────────────────────────────────────────
+
+/** Resolve the mount-time config read: `host.api.fetch` and `response.json()`
+ * each settle a microtask later, so the test waits one macrotask with the
+ * update wrapped in `act`. */
+async function flushConfigRead(): Promise<void> {
+  await act(async () => {
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+  });
+}
+
+describe("PromptHistoryPanel display settings", () => {
+  /** A row that renders every optional affordance: ordinal, send time, and a
+   * completed-turn duration. */
+  function boundedRow() {
+    return {
+      messages: makeMessages(
+        [
+          message({
+            id: "m",
+            content: "bounded prompt",
+            createdAt: "2026-01-01T00:00:00Z",
+            turnId: "turn",
+            promptIndex: 1,
+          }),
+        ],
+        { hasMore: false },
+      ),
+      turns: makeTurns([
+        {
+          id: "turn",
+          taskId: "t",
+          sessionId: "s",
+          startedAt: "2026-01-01T00:00:00Z",
+          completedAt: "2026-01-01T00:00:03Z",
+          updatedAt: "2026-01-01T00:00:03Z",
+        },
+      ]),
+    };
+  }
+
+  it("hides the send time and keeps the duration when display_2_show_time is off", async () => {
+    const { messages, turns } = boundedRow();
+    const { store } = renderPanel(messages, turns, {}, { config: { display_2_show_time: false } });
+    await flushConfigRead();
+
+    // The read is the plugin's own config route, once per mount.
+    expect(store.fetchedPaths).toEqual(["/config"]);
+    expect(document.querySelector(".ph-plugin-row-time")).toBeNull();
+    expect(screen.getByTestId("ph-plugin-duration-0").textContent).toContain("3s");
+    // The meta column survives for the remaining affordance.
+    expect(document.querySelector(".ph-plugin-row-meta")).toBeTruthy();
+    expect(screen.getByText("#1")).toBeTruthy();
+  });
+
+  it("hides the duration and keeps the send time when display_4_show_duration is off", async () => {
+    const { messages, turns } = boundedRow();
+    renderPanel(messages, turns, {}, { config: { display_4_show_duration: false } });
+    await flushConfigRead();
+
+    expect(screen.queryByTestId("ph-plugin-duration-0")).toBeNull();
+    expect(document.querySelector(".ph-plugin-row-time")).toBeTruthy();
+    expect(document.querySelector(".ph-plugin-row-meta")).toBeTruthy();
+  });
+
+  it("drops the meta column so the prompt spans the full row when both are off", async () => {
+    const { messages, turns } = boundedRow();
+    renderPanel(messages, turns, {}, {
+      config: { display_2_show_time: false, display_4_show_duration: false },
+    });
+    await flushConfigRead();
+
+    // Without the right-hand column the row's only child is the main column,
+    // so the bubble reaches the scroller's right padding and the prompt's
+    // right margin matches its left.
+    expect(document.querySelector(".ph-plugin-row-meta")).toBeNull();
+    const row = screen.getByTestId("ph-plugin-row-0");
+    expect(row.children).toHaveLength(1);
+    expect(row.children[0]?.className).toContain("ph-plugin-row-main");
+  });
+
+  it("hides the ordinal when display_1_show_numbers is off", async () => {
+    const { messages, turns } = boundedRow();
+    renderPanel(messages, turns, {}, { config: { display_1_show_numbers: false } });
+    await flushConfigRead();
+
+    const bubble = document.querySelector('[data-message-id="m"]');
+    expect(bubble?.querySelector(".ph-plugin-number")).toBeNull();
+    // The ordinal is decorative; the accessible row label is unaffected.
+    expect(screen.getByTestId("ph-plugin-navigate-0").getAttribute("aria-label")).toBe("Prompt 1");
+  });
+
+  it("keeps every affordance when the config read fails", async () => {
+    const rejected = boundedRow();
+    renderPanel(rejected.messages, rejected.turns, {}, { rejects: true });
+    await flushConfigRead();
+    expect(screen.getByTestId("ph-plugin-duration-0")).toBeTruthy();
+    expect(document.querySelector(".ph-plugin-row-time")).toBeTruthy();
+    expect(screen.getByText("#1")).toBeTruthy();
+    expect(screen.queryByTestId("ph-plugin-error")).toBeNull();
+
+    cleanup();
+    const unauthorized = boundedRow();
+    renderPanel(unauthorized.messages, unauthorized.turns, {}, { status: 401 });
+    await flushConfigRead();
+    expect(screen.getByTestId("ph-plugin-duration-0")).toBeTruthy();
+    expect(document.querySelector(".ph-plugin-row-time")).toBeTruthy();
+    expect(screen.queryByTestId("ph-plugin-error")).toBeNull();
+  });
+
+  it("keeps the shown-by-default row when the stored config omits or mistypes a key", async () => {
+    const { messages, turns } = boundedRow();
+    renderPanel(messages, turns, {}, {
+      config: { display_1_show_numbers: false, display_2_show_time: "false" },
+    });
+    await flushConfigRead();
+
+    expect(screen.queryByText("#1")).toBeNull();
+    // A non-boolean value is ignored rather than coerced: the clock stays.
+    expect(document.querySelector(".ph-plugin-row-time")).toBeTruthy();
+    expect(screen.getByTestId("ph-plugin-duration-0")).toBeTruthy();
+  });
+
+  it("shows the absolute date and hovers the relative form in absolute mode", async () => {
+    const { messages, turns } = boundedRow();
+    renderPanel(messages, turns, {}, { config: { display_3_time_format: "absolute" } });
+    await flushConfigRead();
+
+    const time = document.querySelector("time");
+    // The absolute form: short date, short time.
+    expect(time?.textContent).toBe(
+      new Intl.DateTimeFormat("en", { dateStyle: "short", timeStyle: "short" }).format(
+        new Date("2026-01-01T00:00:00Z"),
+      ),
+    );
+    // ...and the hover is the form the row is not showing.
+    expect(time?.getAttribute("title")).toBe("relative:2026-01-01T00:00:00Z");
+    // The dateTime attribute stays machine-readable in both modes.
+    expect(time?.getAttribute("dateTime")).toBe("2026-01-01T00:00:00Z");
+  });
+
+  it("keeps the compact relative text and hovers the absolute date by default", async () => {
+    const sentAt = new Date(Date.now() - 5 * 60_000).toISOString();
+    renderPanel(
+      makeMessages(
+        [message({ id: "m", content: "recent prompt", createdAt: sentAt, promptIndex: 1 })],
+        { hasMore: false },
+      ),
+      makeTurns([]),
+    );
+    await flushConfigRead();
+
+    const time = document.querySelector("time");
+    expect(time?.textContent).toBe("5m");
+    expect(time?.getAttribute("title")).toBe(
+      new Intl.DateTimeFormat("en", { dateStyle: "short", timeStyle: "short" }).format(
+        new Date(sentAt),
+      ),
+    );
+  });
+
+  it("applies the agent prompt style: normal, soft grey, hide", async () => {
+    // Newer first, so the agent prompt lands at row 0.
+    const agentRow = message({
+      id: "agent",
+      content: "agent prompt",
+      createdAt: "2026-01-01T00:00:02Z",
+      promptIndex: 2,
+      senderTaskId: "other-task",
+    });
+    const userRow = message({
+      id: "user",
+      content: "user prompt",
+      createdAt: "2026-01-01T00:00:00Z",
+      promptIndex: 1,
+    });
+    const rows = () => makeMessages([agentRow, userRow], { hasMore: false });
+
+    // Default (`normal`): the agent row keeps the reference's prompt colour and
+    // the robot glyph.
+    renderPanel(rows(), makeTurns([]));
+    await flushConfigRead();
+    expect(screen.getByTestId("ph-plugin-row-0").querySelector(".ph-plugin-agent")).toBeNull();
+    expect(
+      screen.getByTestId("ph-plugin-row-0").querySelector(".ph-plugin-agent-icon"),
+    ).toBeTruthy();
+    expect(screen.getByTestId("ph-plugin-row-1")).toBeTruthy();
+
+    // `soft grey`: only agent-sent bubbles are repainted; the glyph stays.
+    cleanup();
+    renderPanel(rows(), makeTurns([]), {}, { config: { display_5_agent_style: "soft grey" } });
+    await flushConfigRead();
+    expect(screen.getByTestId("ph-plugin-row-0").querySelector(".ph-plugin-agent")).toBeTruthy();
+    expect(screen.getByTestId("ph-plugin-row-1").querySelector(".ph-plugin-agent")).toBeNull();
+    expect(
+      screen.getByTestId("ph-plugin-row-0").querySelector(".ph-plugin-agent-icon"),
+    ).toBeTruthy();
+    expect(screen.getByTestId("ph-plugin-row-1")).toBeTruthy();
+
+    // `hide`: agent-sent rows are gone; the remaining row keeps its own order.
+    cleanup();
+    renderPanel(rows(), makeTurns([]), {}, { config: { display_5_agent_style: "hide" } });
+    await flushConfigRead();
+    expect(screen.getAllByTestId(/^ph-plugin-row-/)).toHaveLength(1);
+    const remaining = screen.getByTestId("ph-plugin-row-0");
+    expect(remaining.querySelector('[data-message-id="user"]')).toBeTruthy();
+    expect(document.querySelector('[data-message-id="agent"]')).toBeNull();
+    // Hiding a row does not renumber: the ordinal comes from the server.
+    expect(remaining.textContent).toContain("#1");
+  });
+
+  it("keeps paging on every derived row when agent prompts are hidden", async () => {
+    // The oldest loaded prompt is agent-sent and hidden, so the visible list can
+    // never contain `#1`; paging must still stop on the *derived* row rather
+    // than loading the whole session for a list that cannot complete.
+    const agentFirst = message({
+      id: "agent-1",
+      content: "agent prompt one",
+      createdAt: "2026-01-01T00:00:02Z",
+      promptIndex: 1,
+      senderTaskId: "other-task",
+    });
+    const userRow = message({
+      id: "user",
+      content: "user prompt",
+      createdAt: "2026-01-01T00:00:00Z",
+      promptIndex: 2,
+    });
+    renderPanel(
+      makeMessages([agentFirst, userRow], { hasMore: true }),
+      makeTurns([]),
+      {},
+      { config: { display_5_agent_style: "hide" } },
+    );
+    await flushConfigRead();
+
+    expect(screen.queryByTestId("ph-plugin-sentinel")).toBeNull();
+    expect(screen.getAllByTestId(/^ph-plugin-row-/)).toHaveLength(1);
   });
 });

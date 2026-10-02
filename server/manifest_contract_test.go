@@ -16,6 +16,7 @@
 package main
 
 import (
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -59,10 +60,14 @@ func TestManifestCapabilityContract(t *testing.T) {
 // `ui.keybindings`; these are the remaining top-level surfaces the acceptance
 // criteria forbid and the published identity fields, both of which the pinned
 // host exposes to operators (the plugin list renders the repo link).
+//
+// `config_schema` is deliberately absent from this list: REQ-004 makes the
+// operator display settings a required surface, and the host renders it as the
+// settings form at Settings > Plugins > Prompt History. TestPanelConfigKeysAgreement
+// pins the shape it is allowed to take.
 var forbiddenTopLevelKeys = []string{
 	"webhooks",
 	"actions",
-	"config_schema",
 	"web_apps",
 	"repository_providers",
 	"reference_sources",
@@ -131,5 +136,119 @@ func TestManifestRuntimeContract(t *testing.T) {
 		if !strings.Contains(makefile, name) {
 			t.Errorf("Makefile does not build or verify %s, which the manifest declares", name)
 		}
+	}
+}
+
+// The operator display settings are declared in the manifest's config_schema
+// (the host renders them at Settings > Plugins > Prompt History and validates
+// what it PATCHes back) and read by ui/src/panel-config.ts from
+// GET /api/plugins/<id>/config. A one-sided rename fails silently in the worst
+// way: the settings form keeps its control, the panel reads a key nobody
+// writes, and the setting appears to do nothing. A missing default is the
+// second silent failure — an instance whose config was never saved would
+// render the panel's non-default branch instead of its original row.
+//
+// The order below is the field's order in the manifest *and* in the settings
+// form: the `N_` segment exists because the host renders `Object.keys` of the
+// schema, which reaches the browser as a JSON object marshalled from a Go map
+// (sorted), so the key is the only ordering lever. A renamed or renumbered key
+// therefore reorders the form, which is why the expected slice is pinned whole.
+var wantPanelConfigKeys = []string{
+	"display_1_show_numbers",
+	"display_2_show_time",
+	"display_3_time_format",
+	"display_4_show_duration",
+	"display_5_agent_style",
+}
+
+// The two selectors: the only non-boolean fields and the only required ones.
+const (
+	wantPanelDateFormatKey = "display_3_time_format"
+	wantPanelAgentStyleKey = "display_5_agent_style"
+)
+
+// Every field except the two selectors is a boolean toggle.
+var wantPanelBooleanKeys = []string{
+	"display_1_show_numbers",
+	"display_2_show_time",
+	"display_4_show_duration",
+}
+
+func TestPanelConfigKeysAgreement(t *testing.T) {
+	manifest := readDeclaration(t, "manifest.yaml")
+	block := captureDeclaration(t, manifest, `(?m)^config_schema:\n((?:  [^\n]*\n|    [^\n]*\n|      [^\n]*\n)+)`, "manifest.yaml")
+
+	declared := regexp.MustCompile(`(?m)^    (\w+):$`).FindAllStringSubmatch(block, -1)
+	if len(declared) != len(wantPanelConfigKeys) {
+		t.Fatalf("manifest config_schema declares %d properties, want %d (%v)",
+			len(declared), len(wantPanelConfigKeys), wantPanelConfigKeys)
+	}
+	panelConfig := readDeclaration(t, filepath.Join("ui", "src", "panel-config.ts"))
+	for i, want := range wantPanelConfigKeys {
+		if got := declared[i][1]; got != want {
+			t.Errorf("manifest config_schema property %d = %q, want %q", i, got, want)
+		}
+		// The reader keys off the literal, so the panel must name the field.
+		if !strings.Contains(panelConfig, `"`+want+`"`) {
+			t.Errorf("ui/src/panel-config.ts does not reference %q, which the manifest declares", want)
+		}
+	}
+
+	// The `N_` prefix must be lexicographically ordered too: the host sorts the
+	// keys, so a prefix that does not sort with its index would render the form
+	// in an order this slice cannot see.
+	for i, key := range wantPanelConfigKeys {
+		if key[:10] != "display_"+string(rune('1'+i))+"_" {
+			t.Errorf("manifest config_schema property %d = %q, want the display_%d_ render-order prefix", i, key, i+1)
+		}
+	}
+
+	// A boolean without a default would render its off-branch on an instance
+	// whose config was never saved; a wrong default would flip the panel's
+	// original appearance.
+	booleanWithDefault := regexp.MustCompile(`(?m)^      type: boolean\n      default: (true|false)\n`)
+	if got := len(booleanWithDefault.FindAllStringSubmatch(block, -1)); got != len(wantPanelBooleanKeys) {
+		t.Errorf("manifest config_schema declares %d defaulted booleans, want %d (%v)",
+			got, len(wantPanelBooleanKeys), wantPanelBooleanKeys)
+	}
+	for _, key := range wantPanelBooleanKeys {
+		prop := captureDeclaration(t, block, `(?m)^    `+key+`:\n((?:      [^\n]*\n)+)`, "manifest.yaml")
+		if !strings.Contains(prop, "default: ") {
+			t.Errorf("manifest config_schema %s declares no default", key)
+		}
+	}
+	// The date-format selector must offer exactly the values the reader
+	// understands, default to the relative form the reference shows, and be
+	// required: requiring it is what removes the host form's "Not set" choice,
+	// so a missing `required` silently reintroduces a third, meaningless state.
+	dateFormat := captureDeclaration(t, block, `(?m)^    `+wantPanelDateFormatKey+`:\n((?:      [^\n]*\n)+)`, "manifest.yaml")
+	if !strings.Contains(dateFormat, `enum: ["relative", "absolute"]`) {
+		t.Errorf("manifest config_schema %s enum = %q, want [\"relative\", \"absolute\"]", wantPanelDateFormatKey, dateFormat)
+	}
+	if !strings.Contains(dateFormat, `default: "relative"`) {
+		t.Errorf("manifest config_schema %s does not default to \"relative\"", wantPanelDateFormatKey)
+	}
+	// The agent-prompt style is the same shape: the three states the reader
+	// knows, defaulting to the reference's row, and required for the same
+	// reason.
+	agentStyle := captureDeclaration(t, block, `(?m)^    `+wantPanelAgentStyleKey+`:\n((?:      [^\n]*\n)+)`, "manifest.yaml")
+	if !strings.Contains(agentStyle, `enum: ["normal", "soft grey", "hide"]`) {
+		t.Errorf("manifest config_schema %s enum = %q, want [\"normal\", \"soft grey\", \"hide\"]", wantPanelAgentStyleKey, agentStyle)
+	}
+	if !strings.Contains(agentStyle, `default: "normal"`) {
+		t.Errorf("manifest config_schema %s does not default to \"normal\"", wantPanelAgentStyleKey)
+	}
+	required := captureDeclaration(t, block, `(?m)^  required: (.+)$`, "manifest.yaml")
+	wantRequired := `["` + wantPanelDateFormatKey + `", "` + wantPanelAgentStyleKey + `"]`
+	if required != wantRequired {
+		t.Errorf("manifest config_schema required = %s, want %s", required, wantRequired)
+	}
+	panelDateFormatLiterals := regexp.MustCompile(`(?m)^export const PANEL_DATE_FORMATS = \["relative", "absolute"\] as const;`)
+	if !panelDateFormatLiterals.MatchString(panelConfig) {
+		t.Errorf("ui/src/panel-config.ts does not declare PANEL_DATE_FORMATS as the manifest's two values")
+	}
+	panelAgentStyleLiterals := regexp.MustCompile(`(?m)^export const PANEL_AGENT_PROMPT_STYLES = \["normal", "soft grey", "hide"\] as const;`)
+	if !panelAgentStyleLiterals.MatchString(panelConfig) {
+		t.Errorf("ui/src/panel-config.ts does not declare PANEL_AGENT_PROMPT_STYLES as the manifest's three values")
 	}
 }

@@ -1,5 +1,60 @@
 # Changelog
 
+## [1.2.1] - 2026-10-02
+
+### Changed
+
+- Settings order is now **Show prompt numbering**, **Show prompt send time**,
+  **Send time format**, **Show prompt duration**, **Agent prompt style**, and the
+  format selector is labelled *Send time format* (it was "Prompt time format").
+- The keys were renumbered to match that order
+  (`display_1_show_numbers`, `display_2_show_time`, `display_3_time_format`,
+  `display_4_show_duration`, `display_5_agent_style`). The two unchanged keys keep
+  their stored values; the three renumbered ones (`show_numbers`, `show_time`,
+  `time_format`) are no longer read, so those settings show their defaults until
+  saved once on the settings page.
+
+## [1.2.0] - 2026-10-02
+
+### Added
+
+- Operator display settings at Settings > Plugins > Prompt History, rendered by
+  the host from the manifest's `config_schema` in this order:
+  - **Show prompt send time** (clock) — boolean, on by default;
+  - **Prompt time format** — required `relative` / `absolute` selector
+    (default `relative`, the compact `5m` ladder). The row shows the selected
+    form and hovers the other one, so the send-time hover is the absolute
+    locale-formatted date under the compact relative text (matching the core
+    panel's `title={formatDateTime(...)}`) and the host's relative phrase under
+    the absolute text. The absolute form uses short date + short time
+    (`1/1/26, 12:30 AM` in `en`) to stay narrow in the row's right column;
+  - **Show prompt numbering** (`#N`) — boolean, on by default;
+  - **Show prompt duration** (hourglass) — boolean, on by default;
+  - **Agent prompt style** — required `normal` / `soft grey` / `hide` selector
+    (default `normal`, the reference's own row). `soft grey` repaints prompts
+    sent by another task's agent (the favorite highlight still wins), and
+    `hide` drops those rows from the panel without renumbering the rest or
+    changing pagination.
+- With both right-edge toggles off the row renders no meta column, so the
+  prompt text uses the full row width with equal left and right margins.
+- `ui/src/panel-config.ts` reads the stored config once per panel mount through
+  the host's scoped `GET /api/plugins/<id>/config`, keeping the default row for
+  a failed, non-2xx, or malformed read, and `formatPromptDateTime` in
+  `ui/src/derive.ts` renders the absolute form.
+
+### Notes
+
+- The field order is carried by the **keys**
+  (`display_1_show_time` … `display_5_agent_style`): the host renders
+  `Object.keys(properties)` from a JSON object marshalled out of a Go map,
+  which sorts, so a manifest's declaration order never reaches the form. The
+  prefixes are the only ordering lever, and `TestPanelConfigKeysAgreement` pins
+  them (order, defaults, both `required` selectors and their enum members).
+- Both selectors are `required`, which is what removes the host form's
+  "Not set" choice; the panel still reads an absent or unknown value as the
+  default (`relative` / `normal`), so a hand-edited config or a record written
+  by an earlier version keeps working.
+
 ## [1.0.0] - 2026-09-23
 
 ### Changed

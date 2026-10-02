@@ -60,12 +60,14 @@ declared identity and least-privilege manifest.
   stable release cut after the PR #3588 merge (0.95.0 at writing time;
   confirm at release cut).
 - **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-001.3:** The manifest shall declare no
-  webhooks, actions, `config_schema`, `ui.pages`, `ui.keybindings`,
-  `web_apps`, repository providers, reference sources, agent tools, or
+  webhooks, actions, `ui.pages`, `ui.keybindings`, `web_apps`, repository
+  providers, reference sources, agent tools, or
   `events`/`state`/`user_state`/`secrets`/`agent_invoke`/`auth`/`api_write`
   capabilities (the manifest declares `capabilities.api_read: ["messages"]`
   and nothing else). The plugin shall exercise only the capabilities it
-  declares.
+  declares. The one configurable surface shall be the `config_schema` display
+  toggles of REQ-PLUGINS-PROMPT-HISTORY-PLUGIN-004: booleans only, no secrets,
+  no webhooks, no inbound routes.
 - **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-001.4:** When the operator disables or
   uninstalls the plugin, the host shall remove the panel registration without
   error; re-enabling the plugin shall restore the registration with no
@@ -94,20 +96,30 @@ contracts.
   user-authored prompts of the panel's session newest-first, 20 prompts per
   page (matching the parity reference and the host facade default), and
   shall not list agent-authored messages. Each row whose prompt index is
-  present shall display the absolute 1-based `#N` ordinal; rows without a
-  prompt index shall display no ordinal. Rows whose prompt was sent by an
-  agent shall display the agent-sent indicator.
+  present shall display the absolute 1-based `#N` ordinal, unless the operator
+  has disabled numbering (AC-PLUGINS-PROMPT-HISTORY-PLUGIN-004.2); rows
+  without a prompt index shall display no ordinal. Rows whose prompt was sent
+  by an agent shall display the agent-sent indicator.
 - **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-002.3:** Each row shall render the prompt
   text with custom-prompt alias rendering, truncate overflowing text, and
   expose a distinct expand control; the expanded view shall wrap text inside a
   box capped at 40% of the panel height with its own scroll.
-- **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-002.4:** Each row shall show the prompt
-  send time through the host's locale-aware relative time formatting. When
-  the prompt has a duration bound (turn completion or the next prompt's send
-  time) and turns are hydrated, the row shall show the agent-work duration
-  bounded by the earlier of turn completion and the next prompt's send time,
-  floored to whole seconds and clamped at zero; rows without a bound, and
-  all rows before turns hydrate, shall show no duration.
+- **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-002.4:** Each row shall show the send time
+  in the operator-selected format — the parity reference's compact relative
+  ladder (`just now`, `5m`, `5h`, `3d`) by default, or the absolute date and
+  time in the host locale in the short date/short time style when the absolute
+  format is selected (AC-PLUGINS-PROMPT-HISTORY-PLUGIN-004.6) — unless the
+  operator has disabled
+  the send-time display (AC-PLUGINS-PROMPT-HISTORY-PLUGIN-004.2). The hover
+  title shall carry the form the row is not showing: the absolute timestamp
+  under the relative text (the parity reference's `title={formatDateTime(...)}`),
+  and the host's locale-aware relative phrase under the absolute text. When the
+  prompt has a duration bound (turn completion or the next prompt's send time)
+  and turns are hydrated, the row shall show the agent-work duration bounded by
+  the earlier of turn completion and the next prompt's send time, floored to
+  whole seconds and clamped at zero, unless the operator has disabled the
+  duration display; rows without a bound, and all rows before turns hydrate,
+  shall show no duration.
 - **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-002.5:** Prompts whose host favorite state
   is set shall be visually distinguished from non-favorited rows. The plugin
   shall read favorite state through the Host read-only capability only.
@@ -162,6 +174,57 @@ before the package is considered complete, without changing core ownership.
   contain `manifest.yaml`, the UI bundle, the declared executables for all
   five platforms, and the generated internal checksum file; the archive shall
   pass the repository's package verification.
+
+### REQ-PLUGINS-PROMPT-HISTORY-PLUGIN-004: Operator Display Settings
+
+**Intent:** Let an operator trim the row's right-hand metadata, choose how the
+send time reads, and restyle agent prompts, without a code change, through the
+host's standard plugin settings surface.
+
+#### Acceptance criteria
+
+- **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-004.1:** The manifest shall declare a
+  `config_schema` with exactly five properties — the numbering, send-time and
+  duration booleans plus the send-time format and agent-prompt style selectors
+  (AC-…-004.6, AC-…-004.7) — each defaulting to the panel's original
+  appearance, and shall mark both selectors required so the settings form
+  cannot present an unset state for them. The host shall render them at
+  Settings > Plugins > Prompt History, and the settings page (not the plugin)
+  shall persist them.
+- **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-004.2:** The panel shall read the stored
+  config once per mount from `GET /api/plugins/{id}/config` through the Host's
+  scoped fetch and apply each stored boolean: a disabled duration shall render
+  no duration, a disabled send time shall render no send time, and disabled
+  numbering shall render no `#N` ordinal. The accessible row label
+  (`Prompt N`) shall be unaffected by the numbering toggle.
+- **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-004.3:** When both the duration and the
+  send time are disabled, each row shall render no right-hand meta column, so
+  the prompt bubble uses the full row width and its right margin equals its
+  left.
+- **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-004.4:** When the config read rejects,
+  answers non-2xx, or carries a missing or non-boolean value, the panel shall
+  keep the shown-by-default row and surface no error state.
+- **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-004.5:** The plugin shall not write
+  config; a saved change shall apply on the panel's next mount (a session or
+  task switch, or a reload).
+- **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-004.6:** The manifest shall declare the
+  send-time format as a required selector (`display_3_time_format`) whose values
+  are exactly `relative` and `absolute`, defaulting to `relative`, so the host's
+  settings form presents only those two choices (no unset state) and every save
+  submits one. The panel shall render the selected form as the row's send-time
+  text and the other form as its hover title — the absolute form in the host
+  locale's short date and short time styles — and shall keep the machine-readable
+  `dateTime` attribute in both modes. An absent value (a hand-edited config, or
+  a record written before the field was required) shall read as `relative`.
+- **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-004.7:** The manifest shall declare a
+  required `display_5_agent_style` selector whose values are exactly `normal`,
+  `soft grey`, and `hide`, defaulting to `normal`. `normal` shall render
+  agent-sent prompts like every other prompt (keeping the agent glyph); `soft
+  grey` shall render them on a soft grey bubble, with the favorite highlight
+  still winning for a prompt that is both agent-sent and favorited; `hide`
+  shall render no agent-sent row at all, while leaving the remaining prompts'
+  server-assigned ordinals and the panel's pagination behavior unchanged. An
+  absent or unknown value shall read as `normal`.
 
 ## Out of scope
 
