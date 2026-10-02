@@ -228,12 +228,12 @@ func TestPanelConfigKeysAgreement(t *testing.T) {
 	if !strings.Contains(dateFormat, `default: "relative"`) {
 		t.Errorf("manifest config_schema %s does not default to \"relative\"", wantPanelDateFormatKey)
 	}
-	// The agent-prompt style is the same shape: the three states the reader
+	// The agent-prompt style is the same shape: the four states the reader
 	// knows, defaulting to the reference's row, and required for the same
 	// reason.
 	agentStyle := captureDeclaration(t, block, `(?m)^    `+wantPanelAgentStyleKey+`:\n((?:      [^\n]*\n)+)`, "manifest.yaml")
-	if !strings.Contains(agentStyle, `enum: ["normal", "soft grey", "hide"]`) {
-		t.Errorf("manifest config_schema %s enum = %q, want [\"normal\", \"soft grey\", \"hide\"]", wantPanelAgentStyleKey, agentStyle)
+	if !strings.Contains(agentStyle, `enum: ["normal", "soft grey", "hide", "collapse"]`) {
+		t.Errorf("manifest config_schema %s enum = %q, want [\"normal\", \"soft grey\", \"hide\", \"collapse\"]", wantPanelAgentStyleKey, agentStyle)
 	}
 	if !strings.Contains(agentStyle, `default: "normal"`) {
 		t.Errorf("manifest config_schema %s does not default to \"normal\"", wantPanelAgentStyleKey)
@@ -247,8 +247,8 @@ func TestPanelConfigKeysAgreement(t *testing.T) {
 	if !panelDateFormatLiterals.MatchString(panelConfig) {
 		t.Errorf("ui/src/panel-config.ts does not declare PANEL_DATE_FORMATS as the manifest's two values")
 	}
-	panelAgentStyleLiterals := regexp.MustCompile(`(?m)^export const PANEL_AGENT_PROMPT_STYLES = \["normal", "soft grey", "hide"\] as const;`)
+	panelAgentStyleLiterals := regexp.MustCompile(`(?m)^export const PANEL_AGENT_PROMPT_STYLES = \["normal", "soft grey", "hide", "collapse"\] as const;`)
 	if !panelAgentStyleLiterals.MatchString(panelConfig) {
-		t.Errorf("ui/src/panel-config.ts does not declare PANEL_AGENT_PROMPT_STYLES as the manifest's three values")
+		t.Errorf("ui/src/panel-config.ts does not declare PANEL_AGENT_PROMPT_STYLES as the manifest's four values")
 	}
 }

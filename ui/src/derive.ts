@@ -128,6 +128,54 @@ export function derivePromptHistoryRows(
 }
 
 /**
+ * One rendered unit of the prompt list under `display_5_agent_style:
+ * collapse`: either a single row (every non-agent row, and a lone agent row —
+ * a run of one has nothing to fold, so it keeps the plain row and the grey
+ * bubble) or a stack of two or more consecutive agent-sent rows. The panel
+ * renders a `stack` as one folded card; `row` renders exactly as every other
+ * mode's row.
+ */
+export type PromptHistoryRowGroup =
+  | { kind: "row"; startIndex: number; row: PromptHistoryRow }
+  | { kind: "stack"; startIndex: number; front: PromptHistoryRow; rest: PromptHistoryRow[] };
+
+/**
+ * Fold each run of consecutive agent-sent rows into one `stack` group, in the
+ * derived list's own page order (newest first, no re-sort). `front` is the run's
+ * newest row — the one the folded card shows and whose send time and duration
+ * the card's meta column reports — and `rest` holds the older rows it covers.
+ * Grouping is a presentation concern only: it runs after `derive` on the
+ * already-filtered rows, so ordinals stay the server's `promptIndex` values,
+ * nothing is renumbered, and pagination still keys off every derived row (a
+ * stack whose oldest member is `#1` still stops the sentinel).
+ */
+export function groupPromptHistoryRows(rows: readonly PromptHistoryRow[]): PromptHistoryRowGroup[] {
+  const groups: PromptHistoryRowGroup[] = [];
+  let index = 0;
+  while (index < rows.length) {
+    const row = rows[index];
+    if (!row) break;
+    if (!row.isAgentPrompt) {
+      groups.push({ kind: "row", startIndex: index, row });
+      index += 1;
+      continue;
+    }
+    // The run ends at the first non-agent row; `end > index` always holds
+    // because `row` is itself agent-sent.
+    let end = index;
+    while (end < rows.length && rows[end]?.isAgentPrompt) end += 1;
+    const run = rows.slice(index, end);
+    groups.push(
+      run.length === 1
+        ? { kind: "row", startIndex: index, row }
+        : { kind: "stack", startIndex: index, front: row, rest: run.slice(1) },
+    );
+    index = end;
+  }
+  return groups;
+}
+
+/**
  * Format a duration in seconds as a compact `h m s` string using the given
  * unit labels, omitting empty hour/minute parts. Mirrors
  * `formatPromptDuration` in `apps/web/lib/prompt-history.ts`.

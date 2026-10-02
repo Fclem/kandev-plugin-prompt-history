@@ -275,6 +275,96 @@
   border: 0;
 }
 
+/* ── Agent prompt stacks (`display_5_agent_style: collapse`) ───────────── */
+
+/* One folded card per run of consecutive agent-sent prompts. The wrapper is
+ * also the hover/focus region, and expanding replaces the deck with the run's
+ * rows *inside* it, so the pointer never leaves the element keeping it open —
+ * moving onto a row is not a leave. */
+.ph-plugin-stack {
+  padding: 0.25rem 0;
+}
+
+/* The toggle stays mounted in both states: the deck while folded, a small
+ * count chip while expanded. Keeping one node is what stops the swap from
+ * dropping the keyboard focus that expanded the card. */
+.ph-plugin-stack-toggle {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ph-plugin-stack-toggle:focus-visible {
+  outline: 2px solid var(--ring, #71717a);
+  outline-offset: 2px;
+}
+
+/* Reserves the sheets' 4px/8px overhang so nothing clips at the scroller's
+ * edge and the folded card occupies a plain row's box. */
+.ph-plugin-stack-deck {
+  position: relative;
+  display: block;
+  margin: 0 8px 8px 0;
+}
+
+/* The outlines under the front bubble. Same colour model as the soft-grey
+ * agent bubble — `color-mix` over `var(--muted-foreground)`, which the host
+ * repaints per theme — one step lighter for the fill and stronger for the
+ * outline, so both light and dark themes read a deck rather than a second,
+ * darker bubble. */
+.ph-plugin-stack-sheet {
+  position: absolute;
+  inset: 0;
+  border: 1px solid color-mix(in srgb, var(--muted-foreground, #71717a) 32%, transparent);
+  border-radius: var(--radius, 0.375rem);
+  background: color-mix(in srgb, var(--muted-foreground, #71717a) 8%, transparent);
+}
+
+/* The deck's two outlines are its first two spans and the front bubble is the
+ * third, so `nth-of-type` (which counts spans, not children) targets the
+ * sheets by position. `:first-of-type`/`:last-of-type` would not: the front
+ * span is the last span, so the second sheet matched neither and stayed
+ * un-offset — measured in Chromium, where only one outline showed. */
+.ph-plugin-stack-sheet:nth-of-type(1) {
+  transform: translate(4px, 4px);
+}
+
+.ph-plugin-stack-sheet:nth-of-type(2) {
+  transform: translate(8px, 8px);
+}
+
+/* The run's newest prompt, painted above both sheets. */
+.ph-plugin-stack-front {
+  position: relative;
+  z-index: 1;
+}
+
+.ph-plugin-stack-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  margin: 0.125rem 0;
+  padding: 0.0625rem 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--muted-foreground, #71717a) 32%, transparent);
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--muted-foreground, #71717a) 10%, transparent);
+  color: var(--muted-foreground, #71717a);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.ph-plugin-stack-icon {
+  flex: 0 0 auto;
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
 /* ── Sentinel + loading-older indicator ─────────────────────────────────── */
 
 .ph-plugin-sentinel {

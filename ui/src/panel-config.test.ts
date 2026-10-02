@@ -53,6 +53,10 @@ describe("readPanelDisplaySettings", () => {
       ...DEFAULT_PANEL_DISPLAY_SETTINGS,
       agentPromptStyle: "hide",
     });
+    expect(readPanelDisplaySettings({ config: { display_5_agent_style: "collapse" } })).toEqual({
+      ...DEFAULT_PANEL_DISPLAY_SETTINGS,
+      agentPromptStyle: "collapse",
+    });
     expect(readPanelDisplaySettings({ config: { display_5_agent_style: "normal" } })).toEqual(
       DEFAULT_PANEL_DISPLAY_SETTINGS,
     );
@@ -100,7 +104,7 @@ describe("readPanelDisplaySettings", () => {
         DEFAULT_PANEL_DISPLAY_SETTINGS,
       );
     }
-    for (const value of ["Soft Grey", "SOFT GREY", "hidden", "", 0, null, false, []]) {
+    for (const value of ["Soft Grey", "SOFT GREY", "hidden", "Collapse", "", 0, null, false, []]) {
       expect(readPanelDisplaySettings({ config: { display_5_agent_style: value } })).toEqual(
         DEFAULT_PANEL_DISPLAY_SETTINGS,
       );
@@ -118,6 +122,6 @@ describe("readPanelDisplaySettings", () => {
       agentStyle: "display_5_agent_style",
     });
     expect(PANEL_DATE_FORMATS).toEqual(["relative", "absolute"]);
-    expect(PANEL_AGENT_PROMPT_STYLES).toEqual(["normal", "soft grey", "hide"]);
+    expect(PANEL_AGENT_PROMPT_STYLES).toEqual(["normal", "soft grey", "hide", "collapse"]);
   });
 });

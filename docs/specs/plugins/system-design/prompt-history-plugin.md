@@ -5,6 +5,7 @@ requirements:
   - REQ-PLUGINS-PROMPT-HISTORY-PLUGIN-001
   - REQ-PLUGINS-PROMPT-HISTORY-PLUGIN-002
   - REQ-PLUGINS-PROMPT-HISTORY-PLUGIN-003
+  - REQ-PLUGINS-PROMPT-HISTORY-PLUGIN-004
 ---
 # Prompt History Plugin System Design
 
@@ -28,6 +29,7 @@ the UI system and is not modified here.
 | `REQ-PLUGINS-PROMPT-HISTORY-PLUGIN-001` | [Package and identity](#package-and-identity) |
 | `REQ-PLUGINS-PROMPT-HISTORY-PLUGIN-002` | [UI bundle architecture](#ui-bundle-architecture), [Data and contracts](#data-and-contracts), [Control flow](#control-flow), [Failure and recovery](#failure-and-recovery) |
 | `REQ-PLUGINS-PROMPT-HISTORY-PLUGIN-003` | [Parity proof](#parity-proof), [Verification](#verification) |
+| `REQ-PLUGINS-PROMPT-HISTORY-PLUGIN-004` | [Package and identity](#package-and-identity), [UI bundle architecture](#ui-bundle-architecture) |
 
 ## Package and identity
 
@@ -41,7 +43,7 @@ derived `PKG_OUT`, and the `window.registerKandevPlugin` id:
 Manifest fields, per the [manifest reference](../../../public/plugins-manifest.md):
 
 - `id: "kandev-plugin-prompt-history"`, `api_version: 2`,
-  `version: "1.0.0"`, `display_name: "Prompt History"`, a one-line
+  `version: "1.3.0"`, `display_name: "Prompt History"`, a one-line
   `description`, `author: "kandev"`, `categories: ["tools"]`, and
   `repo_url: "https://github.com/Fclem/kandev-plugin-prompt-history"` (the
   publishing repo; the scaffold's `kdlbs/…` placeholder 404s).
@@ -179,11 +181,30 @@ Module layout:
   automated assertion. Deliberate delta: the plugin also puts
   `role="status"` on the empty state; the core's empty and passthrough
   states are plain divs with no role.
+
+  The `collapse` agent-prompt style (AC-004.7) adds the panel's one fold, and
+  with it a second deliberate a11y delta: the core has no folding card, so the
+  interaction is plugin-owned and a hover-only fold would be unreachable by
+  keyboard. The card is a real `<button>` carrying `aria-expanded` and a
+  catalog label (`Expand 3 agent prompts` / `Collapse 3 agent prompts`) and
+  toggles on Enter/Space; it expands on hover, on focus, and on a press, and
+  folds when the pointer or the focus leaves the stack. The toggle node stays
+  mounted across the swap (the deck while folded, a visible count chip while
+  expanded) so expanding never drops the focus that expanded it, and focus
+  moving onto a control inside the expanded run is not a leave. A pointer press
+  records the state it started from, so the click a tap dispatches after the
+  focus it causes resolves to the tap's intent instead of undoing the expansion
+  — the keyboard path, which has no pointer press, keeps the plain toggle
+  semantics. The folded front bubble's mention text is rendered
+  non-interactively on purpose (the whole card is one button, and a chip or
+  link inside it would nest an interactive control in a button); the expanded
+  rows render the same text with its controls live.
 - `ui/src/panel-config.ts` — the operator display settings (REQ-004). The pure
   `readPanelDisplaySettings` maps the `{ config: {...} }` envelope from
-  `GET /api/plugins/{id}/config` to four booleans and the `relative`/`absolute`
-  date format (absent, mistyped, or unreadable values keep the default; the
-  enum is total — only `"absolute"` selects the absolute form), and
+  `GET /api/plugins/{id}/config` to the three booleans, the `relative`/`absolute`
+  date format, and the agent-prompt style (absent, mistyped, or unreadable
+  values keep the default; both enums are total — only an exact member selects
+  a non-default), and
   `usePanelDisplaySettings` performs one `host.api.fetch("/config")` per mount
   with `cache: "no-store"` and aborts it on unmount. The panel gates the `#N`
   ordinal, the send time, and the duration on those booleans, renders no
@@ -192,11 +213,13 @@ Module layout:
   send-time text between the compact relative ladder and the absolute
   locale-formatted date (with the other form as the hover title), and applies
   the agent-prompt style — adding the `ph-plugin-agent` bubble class for
-  `soft grey`, or filtering agent-sent rows out of the rendered list for
-  `hide` while paging keeps keying off every derived row (a hidden `#1` must
-  not send the sentinel hunting for a list it can never complete). A failed or
-  non-2xx read keeps every affordance and surfaces no error; config is only
-  ever read, never written.
+  `soft grey` and for the lone agent rows `collapse` does not fold, folding
+  each run of consecutive agent-sent rows into one card for `collapse` (see
+  `groupPromptHistoryRows`), or filtering agent-sent rows out of the rendered
+  list for `hide` while paging keeps keying off every derived row (a hidden `#1`
+  must not send the sentinel hunting for a list it can never complete). A
+  failed or non-2xx read keeps every affordance and surfaces no error; config is
+  only ever read, never written.
 - `ui/src/derive.ts` `formatPromptDateTime` — the absolute send-time form:
   the host-locale date and time with short date and short time styles
   (`1/1/26, 12:30 AM` in `en`; the reference's `formatDateTime` passes no
@@ -243,7 +266,14 @@ Module layout:
   and a prompt that is both agent-sent and favorited keeps the highlight; the
   `.dark` favorite rule outranks both. `color-mix` was already the
   stylesheet's colour model (the default bubble and the favorite highlight),
-  so the agent variant adds no new browser requirement.
+  so the agent variant adds no new browser requirement. The `collapse` deck
+  keeps that model: `.ph-plugin-stack-sheet` is two absolutely positioned
+  outlines under the front bubble — the same `color-mix` over
+  `var(--muted-foreground)` one step lighter for the fill and a touch stronger
+  for the 1px border, offset 4 px and 8 px down-right inside a deck box that
+  reserves that overhang — so the deck reads as stacked cards in both themes
+  instead of a second, darker bubble, and the front bubble's own radius stays
+  the host's `--radius` token.
 - `ui/src/derive.ts` — pure entry derivation from the Host DTOs: `#N`
   ordinal from `promptIndex`, agent-sent flag from `senderTaskId`, and
   duration bounded by the earlier of turn completion and the
@@ -258,7 +288,15 @@ Module layout:
   (not `Date.parse`/millisecond truncation), and provides the
   plugin-local `formatPromptDuration` mirror
   (`h m s` unit labels from the translation catalog) matching
-  `apps/web/lib/prompt-history.ts` `formatPromptDuration`. The vitest suite
+  `apps/web/lib/prompt-history.ts` `formatPromptDuration`.
+  `groupPromptHistoryRows` is the pure `collapse`-mode seam over the derived
+  list: it folds each run of consecutive agent-sent rows into one `stack`
+  group (`front` is the run's newest row — the one the card shows and whose
+  time and duration its meta column reports — plus the older `rest`), and
+  leaves every other row as its own `row` group, so a run of one keeps the
+  plain row. Grouping runs after derivation, on the visible rows, and never
+  renumbers: ordinals stay the server's `promptIndex` values and pagination
+  keeps keying off every derived row. The vitest suite
   includes a case with two identical `createdAt` values whose ids are
   seeded so ascending-id order contradicts the facade page order, to pin
   that derive preserves page order rather than sorting by timestamp, and a
@@ -310,7 +348,10 @@ Module layout:
   `h`/`i` than the host's pseudo generator emits. The title is display-only
   (the panel's layout identity is its `plugin:<id>:prompt-history` key), so
   the difference shows only as casing in the desktop "+" menu and the mobile
-  Panels picker.
+  Panels picker. Three keys are plugin-only deltas by necessity rather than by
+  choice — `expandAgentPrompts`, `collapseAgentPrompts`, and
+  `agentPromptStackLabel` for the `collapse` card, which the core has no
+  counterpart for — and they exist in all six locales like every other key.
 - `ui/src/host.ts` — re-exports the `@kandev/plugin-sdk` types (the
   `file:../../kdlbs-kandev/apps/packages/plugin-sdk` dependency in
   `ui/package.json`) instead of restating the contract, so
@@ -548,6 +589,17 @@ runs against a disposable development instance:
   `make package` (cross-platform), `make verify-package` (archive
   contents, checksums, staging leak check, absence of `ui/src`,
   `ui/node_modules`, `ui/package.json`), CI equivalent.
+- Collapse mode (`display_5_agent_style: collapse`): the rendered panel suite
+  covers the fold through observable state — a run of two and a run of three
+  each render one card and no plain rows, two runs separated by a user prompt
+  render two cards with that prompt's row in place, a lone agent prompt renders
+  no card chrome, hover/focus/press expand the card and leaving folds it back,
+  focus moving onto a control inside an expanded run does not fold it, the
+  front row's own send time and duration are what the card's meta column
+  shows, `hide`/`soft grey`/`normal` keep their previous rendering, and a folded
+  run whose oldest member is `#1` still stops the sentinel — asserting
+  `aria-expanded`, the visible row/stack test ids, and the rendered text rather
+  than class names alone.
 - Parity: the throwaway desktop and mobile Playwright runs from the parity
   proof section, plus the harness build step, which packages the
   plugin-fixture, and the existing core prompt-history E2E specs to

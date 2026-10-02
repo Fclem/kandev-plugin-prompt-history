@@ -37,14 +37,17 @@ export type PanelDateFormat = "relative" | "absolute";
 /**
  * How agent-sent prompts are presented: `normal` is the reference's row (the
  * same bubble as every other prompt, with the robot glyph), `soft grey`
- * repaints the bubble, and `hide` drops those rows from the panel entirely.
+ * repaints the bubble, `hide` drops those rows from the panel entirely, and
+ * `collapse` folds each run of consecutive agent-sent prompts into one
+ * stacked card that unfolds on hover or focus (see `groupPromptHistoryRows`
+ * in `ui/src/derive.ts` and `AgentPromptStack` in `ui/src/panel.tsx`).
  * The values double as the settings form's option labels — the host renders an
  * enum's members verbatim.
  */
-export type PanelAgentPromptStyle = "normal" | "soft grey" | "hide";
+export type PanelAgentPromptStyle = "normal" | "soft grey" | "hide" | "collapse";
 
 /** The `display_5_agent_style` enum the manifest declares, in form order. */
-export const PANEL_AGENT_PROMPT_STYLES = ["normal", "soft grey", "hide"] as const;
+export const PANEL_AGENT_PROMPT_STYLES = ["normal", "soft grey", "hide", "collapse"] as const;
 
 /**
  * Config keys declared by `config_schema.properties` in manifest.yaml. The
@@ -126,7 +129,13 @@ export function readPanelDisplaySettings(payload: unknown): PanelDisplaySettings
   if (agentStyle in config) {
     const stored = config[agentStyle];
     settings.agentPromptStyle =
-      stored === "soft grey" ? "soft grey" : stored === "hide" ? "hide" : "normal";
+      stored === "soft grey"
+        ? "soft grey"
+        : stored === "hide"
+          ? "hide"
+          : stored === "collapse"
+            ? "collapse"
+            : "normal";
   }
   return settings;
 }

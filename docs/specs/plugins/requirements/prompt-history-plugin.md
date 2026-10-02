@@ -218,13 +218,26 @@ host's standard plugin settings surface.
   a record written before the field was required) shall read as `relative`.
 - **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-004.7:** The manifest shall declare a
   required `display_5_agent_style` selector whose values are exactly `normal`,
-  `soft grey`, and `hide`, defaulting to `normal`. `normal` shall render
-  agent-sent prompts like every other prompt (keeping the agent glyph); `soft
-  grey` shall render them on a soft grey bubble, with the favorite highlight
-  still winning for a prompt that is both agent-sent and favorited; `hide`
-  shall render no agent-sent row at all, while leaving the remaining prompts'
-  server-assigned ordinals and the panel's pagination behavior unchanged. An
-  absent or unknown value shall read as `normal`.
+  `soft grey`, `hide`, and `collapse`, defaulting to `normal`. `normal` shall
+  render agent-sent prompts like every other prompt (keeping the agent glyph);
+  `soft grey` shall render them on a soft grey bubble, with the favorite
+  highlight still winning for a prompt that is both agent-sent and favorited;
+  `hide` shall render no agent-sent row at all, while leaving the remaining
+  prompts' server-assigned ordinals and the panel's pagination behavior
+  unchanged. `collapse` shall fold each run of two or more consecutive
+  agent-sent rows into one stacked card — the run's newest prompt on a soft
+  grey front bubble with two offset outlines behind it, drawn from the same
+  `color-mix` colour model and readable in both themes — whose meta column
+  reports that front row's own send time and duration. The card shall be a
+  focusable `button` carrying `aria-expanded`, a catalog label, and a visible
+  count while expanded; it shall expand on hover, on focus, and on a press, and
+  fold back when the pointer or the focus leaves the stack, and the expanded
+  run shall render the ordinary rows with their ordinals, agent glyph,
+  long-text expand control, transcript navigation, and favorite highlight. A
+  run of exactly one agent-sent row shall render as the plain grey row with no
+  card chrome, and folding shall leave the remaining prompts' server-assigned
+  ordinals and the panel's pagination behavior unchanged. An absent or unknown
+  value shall read as `normal`.
 
 ## Out of scope
 

@@ -45,7 +45,7 @@ settings looks exactly as it always did.
 | Show prompt send time | switch | on |
 | Send time format | `relative` / `absolute` | `relative` |
 | Show prompt duration | switch | on |
-| Agent prompt style | `normal` / `soft grey` / `hide` | `normal` |
+| Agent prompt style | `normal` / `soft grey` / `hide` / `collapse` | `normal` |
 
 - **The row shows one time format and hovers the other.** With the compact
   relative ladder (`5m`) visible, the hover is the absolute, locale-formatted date
@@ -59,6 +59,17 @@ settings looks exactly as it always did.
   remaining prompts (their ordinals are the server's) and without changing how
   pagination walks history. `soft grey` repaints those rows instead; the favorite
   highlight still wins on a prompt that is both agent-sent and favorited.
+- **`collapse` folds each run of consecutive agent-sent prompts into one stacked
+  card** — the newest prompt's bubble with two offset outlines behind it, reading
+  as a small deck. Hovering the card unfolds the run; moving the pointer off it
+  folds it back. The card is a real `button` with `aria-expanded` and a catalog
+  label, so it also unfolds on focus and toggles with Enter/Space. A run of one
+  keeps the plain grey row (there is nothing to fold), the card's clock and
+  hourglass are the front — newest — prompt's own values, and the unfolded rows
+  keep their ordinals, robot glyph, long-text expand control, transcript
+  navigation, and favorite highlight. Folding never renumbers prompts and never
+  changes pagination: paging still keys off every derived row, so a folded run
+  whose oldest member is `#1` still stops older-page loading.
 - **Both selectors are required**, which is what removes the host form's "Not set"
   choice, and the panel reads an absent or unknown value as the default.
 
@@ -76,7 +87,7 @@ kandev **0.95.0 or newer**, with the `plugins` feature enabled.
 
 1. **Settings > Plugins**, then install **Prompt History** from the marketplace —
    or upload/point at the release package
-   (`kandev-plugin-prompt-history-1.0.0.tar.gz`).
+   (`kandev-plugin-prompt-history-1.3.0.tar.gz`).
 2. Open a task's panel menu and pick **Prompt History**.
 
 To install against a running instance from the command line, see

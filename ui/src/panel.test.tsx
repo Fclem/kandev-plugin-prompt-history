@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as React from "react";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { PromptHistoryPanel } from "./panel";
 import {
   determinePanelState,
@@ -2559,5 +2559,265 @@ describe("PromptHistoryPanel display settings", () => {
 
     expect(screen.queryByTestId("ph-plugin-sentinel")).toBeNull();
     expect(screen.getAllByTestId(/^ph-plugin-row-/)).toHaveLength(1);
+  });
+});
+
+// ── Agent prompt stacks (`display_5_agent_style: collapse`) ────────────────
+
+describe("PromptHistoryPanel agent prompt stacks", () => {
+  const COLLAPSE = { config: { display_5_agent_style: "collapse" } };
+
+  /** A prompt sent by another task's agent; the foreign `senderTaskId` is the
+   * marker `derive` reads. */
+  function agentPrompt(id: string, promptIndex: number, createdAt: string) {
+    return message({
+      id,
+      content: `prompt ${promptIndex}`,
+      createdAt,
+      promptIndex,
+      senderTaskId: "other-task",
+    });
+  }
+
+  function userPrompt(id: string, promptIndex: number, createdAt: string) {
+    return message({ id, content: `prompt ${promptIndex}`, createdAt, promptIndex });
+  }
+
+  /** A newest-first run of three consecutive agent prompts (#3, #2, #1). The
+   * front row carries a turn so its duration is assertable. */
+  function agentRun() {
+    return [
+      { ...agentPrompt("a3", 3, "2026-01-01T00:00:03Z"), turnId: "turn-3" },
+      agentPrompt("a2", 2, "2026-01-01T00:00:02Z"),
+      agentPrompt("a1", 1, "2026-01-01T00:00:01Z"),
+    ];
+  }
+
+  const completedTurn = {
+    id: "turn-3",
+    taskId: "t",
+    sessionId: "s",
+    startedAt: "2026-01-01T00:00:03Z",
+    completedAt: "2026-01-01T00:00:08Z",
+    updatedAt: "2026-01-01T00:00:08Z",
+  };
+
+  it("folds a run of consecutive agent prompts into one card", async () => {
+    renderPanel(
+      makeMessages(agentRun(), { hasMore: false }),
+      makeTurns([completedTurn]),
+      {},
+      COLLAPSE,
+    );
+    await flushConfigRead();
+
+    // Three rows become one card: no plain rows, one stack at their position.
+    expect(screen.queryAllByTestId(/^ph-plugin-row-/)).toHaveLength(0);
+    const stack = screen.getByTestId("ph-plugin-stack-0");
+    const toggle = screen.getByTestId("ph-plugin-stack-toggle-0");
+    expect(toggle.tagName).toBe("BUTTON");
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle.getAttribute("aria-label")).toBe("Expand 3 agent prompts");
+
+    // The deck: the newest prompt on the front bubble, grey like every agent
+    // prompt in this mode, over two offset outlines.
+    const front = stack.querySelector(".ph-plugin-stack-front");
+    expect(front?.classList.contains("ph-plugin-agent")).toBe(true);
+    expect(front?.textContent).toContain("#3");
+    expect(front?.textContent).toContain("prompt 3");
+    expect(stack.querySelectorAll(".ph-plugin-stack-sheet")).toHaveLength(2);
+
+    // The card's meta column reports the front (newest) row's own values.
+    expect(stack.querySelector("time")?.getAttribute("datetime")).toBe("2026-01-01T00:00:03Z");
+    expect(screen.getByTestId("ph-plugin-duration-0").textContent).toContain("5s");
+  });
+
+  it("folds separate runs and leaves the prompts between them alone", async () => {
+    renderPanel(
+      makeMessages(
+        [
+          agentPrompt("a4", 5, "2026-01-01T00:00:05Z"),
+          agentPrompt("a3", 4, "2026-01-01T00:00:04Z"),
+          userPrompt("u2", 3, "2026-01-01T00:00:03Z"),
+          agentPrompt("a2", 2, "2026-01-01T00:00:02Z"),
+          agentPrompt("a1", 1, "2026-01-01T00:00:01Z"),
+        ],
+        { hasMore: false },
+      ),
+      makeTurns([]),
+      {},
+      COLLAPSE,
+    );
+    await flushConfigRead();
+
+    expect(screen.getByTestId("ph-plugin-stack-0")).toBeTruthy();
+    expect(screen.getByTestId("ph-plugin-stack-3")).toBeTruthy();
+    // The user prompt between the two runs keeps its plain row, in place, with
+    // its server ordinal.
+    expect(screen.getAllByTestId(/^ph-plugin-row-/)).toHaveLength(1);
+    const middle = screen.getByTestId("ph-plugin-row-2");
+    expect(middle.querySelector('[data-message-id="u2"]')).toBeTruthy();
+    expect(middle.textContent).toContain("#3");
+    // Each card fronts its own run's newest prompt.
+    expect(screen.getByTestId("ph-plugin-stack-0").textContent).toContain("prompt 5");
+    expect(screen.getByTestId("ph-plugin-stack-3").textContent).toContain("prompt 2");
+  });
+
+  it("renders no stack for a lone agent prompt", async () => {
+    renderPanel(
+      makeMessages(
+        [agentPrompt("a1", 2, "2026-01-01T00:00:02Z"), userPrompt("u1", 1, "2026-01-01T00:00:01Z")],
+        { hasMore: false },
+      ),
+      makeTurns([]),
+      {},
+      COLLAPSE,
+    );
+    await flushConfigRead();
+
+    expect(document.querySelector(".ph-plugin-stack")).toBeNull();
+    expect(screen.getAllByTestId(/^ph-plugin-row-/)).toHaveLength(2);
+    // Still an agent prompt — grey, robot glyph, server ordinal — with no card
+    // chrome around it.
+    const lone = screen.getByTestId("ph-plugin-row-0");
+    expect(lone.querySelector(".ph-plugin-agent")).toBeTruthy();
+    expect(lone.querySelector(".ph-plugin-agent-icon")).toBeTruthy();
+    expect(lone.textContent).toContain("#2");
+  });
+
+  it("expands on hover and folds back when the pointer leaves", async () => {
+    renderPanel(makeMessages(agentRun(), { hasMore: false }), makeTurns([]), {}, COLLAPSE);
+    await flushConfigRead();
+    const toggle = screen.getByTestId("ph-plugin-stack-toggle-0");
+
+    fireEvent.mouseOver(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    // The run's own rows, with their controls, are back inside the stack.
+    expect(screen.getAllByTestId(/^ph-plugin-row-/)).toHaveLength(3);
+    expect(screen.getByTestId("ph-plugin-navigate-1")).toBeTruthy();
+    expect(screen.getByTestId("ph-plugin-duration-1")).toBeTruthy();
+
+    // Including the long-text expand control, which still opens the row's box.
+    revealOverflowToggle("prompt 3");
+    act(() => {
+      screen.getByTestId("ph-plugin-expand-0").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+    expect(screen.getByTestId("ph-plugin-expanded-box-0")).toBeTruthy();
+
+    fireEvent.mouseOut(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryAllByTestId(/^ph-plugin-row-/)).toHaveLength(0);
+  });
+
+  it("expands on focus, keeps focus inside the stack, and folds on leave", async () => {
+    renderPanel(makeMessages(agentRun(), { hasMore: false }), makeTurns([]), {}, COLLAPSE);
+    await flushConfigRead();
+    const toggle = screen.getByTestId("ph-plugin-stack-toggle-0");
+
+    act(() => {
+      toggle.focus();
+    });
+    expect(document.activeElement).toBe(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+
+    // A focus move onto a control inside the expanded run is not a leave. The
+    // focusout is dispatched on its own so the assertion observes that single
+    // event rather than the batched blur+focus pair a real focus move makes
+    // (which nets out to expanded either way).
+    act(() => {
+      screen.getByTestId("ph-plugin-navigate-0").dispatchEvent(
+        new FocusEvent("focusout", {
+          bubbles: true,
+          relatedTarget: screen.getByTestId("ph-plugin-navigate-1"),
+        }),
+      );
+    });
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getAllByTestId(/^ph-plugin-row-/)).toHaveLength(3);
+
+    // Focus leaving the stack folds it back, closing the keyboard loop.
+    act(() => {
+      screen.getByTestId("ph-plugin-navigate-1").dispatchEvent(
+        new FocusEvent("focusout", { bubbles: true, relatedTarget: document.body }),
+      );
+    });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryAllByTestId(/^ph-plugin-row-/)).toHaveLength(0);
+  });
+
+  it("expands on a press and collapses on the next activation", async () => {
+    renderPanel(makeMessages(agentRun(), { hasMore: false }), makeTurns([]), {}, COLLAPSE);
+    await flushConfigRead();
+    const toggle = screen.getByTestId("ph-plugin-stack-toggle-0");
+
+    // A pointer press focuses the button (which expands the card) and only
+    // then dispatches the click; the click resolves to the press's intent
+    // instead of undoing the expansion it caused.
+    act(() => {
+      fireEvent.pointerDown(toggle);
+      toggle.focus();
+      fireEvent.click(toggle);
+    });
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getAllByTestId(/^ph-plugin-row-/)).toHaveLength(3);
+
+    // A keyboard activation has no pointer press and keeps the plain toggle.
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("leaves hide, soft grey, and normal ungrouped", async () => {
+    const mixedRun = () => [
+      ...agentRun(),
+      userPrompt("u1", 1, "2026-01-01T00:00:00Z"),
+    ];
+
+    // `hide`: the run is still dropped entirely, and what remains keeps its
+    // server ordinal.
+    renderPanel(
+      makeMessages(mixedRun(), { hasMore: false }),
+      makeTurns([]),
+      {},
+      { config: { display_5_agent_style: "hide" } },
+    );
+    await flushConfigRead();
+    expect(document.querySelector(".ph-plugin-stack")).toBeNull();
+    expect(screen.getAllByTestId(/^ph-plugin-row-/)).toHaveLength(1);
+    expect(screen.getByTestId("ph-plugin-row-0").textContent).toContain("prompt 1");
+
+    // `soft grey`: three separate rows, each painted grey, no card.
+    cleanup();
+    renderPanel(
+      makeMessages(agentRun(), { hasMore: false }),
+      makeTurns([]),
+      {},
+      { config: { display_5_agent_style: "soft grey" } },
+    );
+    await flushConfigRead();
+    expect(document.querySelector(".ph-plugin-stack")).toBeNull();
+    const greyRows = screen.getAllByTestId(/^ph-plugin-row-/);
+    expect(greyRows).toHaveLength(3);
+    for (const row of greyRows) expect(row.querySelector(".ph-plugin-agent")).toBeTruthy();
+
+    // `normal`: three separate rows in the reference's prompt colour.
+    cleanup();
+    renderPanel(makeMessages(agentRun(), { hasMore: false }), makeTurns([]));
+    await flushConfigRead();
+    expect(document.querySelector(".ph-plugin-stack")).toBeNull();
+    expect(screen.getAllByTestId(/^ph-plugin-row-/)).toHaveLength(3);
+    expect(document.querySelector(".ph-plugin-agent")).toBeNull();
+  });
+
+  it("stops paging on a folded run that contains the first prompt", async () => {
+    renderPanel(makeMessages(agentRun(), { hasMore: true }), makeTurns([]), {}, COLLAPSE);
+    await flushConfigRead();
+
+    // The fold hides `#1` behind the card, but paging keys off every derived
+    // row: the sentinel stops instead of loading pages for a list that can
+    // never complete.
+    expect(screen.getByTestId("ph-plugin-stack-0")).toBeTruthy();
+    expect(screen.queryByTestId("ph-plugin-sentinel")).toBeNull();
   });
 });

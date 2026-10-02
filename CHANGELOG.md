@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.3.0] - 2026-10-02
+
+### Added
+
+- **Agent prompt style `collapse`**: a fourth value for the
+  `display_5_agent_style` selector. Each run of consecutive agent-sent prompts
+  folds into one stacked card — the run's newest prompt on a grey front bubble
+  with two offset outlines behind it, reading as a small deck in both themes.
+  Hovering the card unfolds the run and moving the pointer off it folds it back;
+  the card is also a real `button` with `aria-expanded` and a catalog label, so
+  it unfolds on focus and toggles with Enter/Space (`Tab` into it to read the
+  run).
+- The card's meta column shows the front (newest) prompt's own send time and
+  duration; the unfolded rows keep their ordinals, robot glyph, long-text expand
+  control, transcript navigation, and favorite highlight. A run of exactly one
+  agent prompt keeps the plain grey row (nothing to fold), and `collapse` paints
+  every agent prompt grey, stacked or not.
+- Folding changes neither numbering nor pagination: ordinals stay the server's
+  `promptIndex` values, and paging still keys off every derived row, so a folded
+  run whose oldest member is `#1` still stops older-page loading.
+
 ## [1.2.1] - 2026-10-02
 
 ### Changed
