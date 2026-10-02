@@ -58,14 +58,14 @@ export const PANEL_AGENT_PROMPT_STYLES = ["normal", "soft grey", "hide"] as cons
  * nothing — the key is the only ordering lever a plugin has.
  */
 export const PANEL_CONFIG_KEYS = {
-  showTime: "display_1_show_time",
-  dateFormat: "display_2_time_format",
-  showNumbers: "display_3_show_numbers",
+  showNumbers: "display_1_show_numbers",
+  showTime: "display_2_show_time",
+  dateFormat: "display_3_time_format",
   showDuration: "display_4_show_duration",
   agentStyle: "display_5_agent_style",
 } as const;
 
-/** The `display_2_time_format` enum the manifest declares. */
+/** The `display_3_time_format` enum the manifest declares. */
 export const PANEL_DATE_FORMATS = ["relative", "absolute"] as const;
 
 /** The panel's original appearance: what it rendered before the config

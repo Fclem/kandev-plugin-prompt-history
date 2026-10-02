@@ -8,7 +8,7 @@
 # in sync when you rename.
 id: "kandev-plugin-prompt-history"
 api_version: 2
-version: "1.2.0"
+version: "1.2.1"
 display_name: "Prompt History"
 description: "Task panel listing the active session's user prompts with parity to the shipped core panel."
 author: "kandev"
@@ -58,7 +58,7 @@ capabilities:
 # PANEL_DATE_FORMATS in ui/src/panel-config.ts, and `go test ./server/...`
 # fails if the two sides drift.
 #
-# `required` lists the two selectors — `display_2_time_format` and
+# `required` lists the two selectors — `display_3_time_format` and
 # `display_5_agent_style`: an optional enum renders a "Not set" choice on the
 # host's form, and neither setting has a meaningful third state (the panel has
 # exactly two time formats, and every prompt is one of the three styles), so
@@ -71,27 +71,27 @@ capabilities:
 # form. The form renders `Object.keys(properties)` in order, and the host hands
 # the frontend a JSON object marshalled from a Go map — which sorts keys — so
 # the declaration order below is *not* the render order and the key is the only
-# ordering lever the manifest has. `display_1_…` renders first (send time),
-# `display_2_…` second (its format), and so on.
+# ordering lever the manifest has. `display_1_…` renders first (numbering),
+# `display_2_…` second (send time), `display_3_…` third (its format), and so on.
 config_schema:
   type: object
   properties:
-    display_1_show_time:
-      type: boolean
-      default: true
-      title: "Show prompt send time"
-      description: "Show the send time (clock) at the right edge of each prompt row. Hidden send time and duration together let the prompt text use the full row width."
-    display_2_time_format:
-      type: string
-      enum: ["relative", "absolute"]
-      default: "relative"
-      title: "Prompt time format"
-      description: "How the send time reads: compact relative (\"5m\"), or the absolute date and time in the host locale (short date and short time). The other form is shown on hover."
-    display_3_show_numbers:
+    display_1_show_numbers:
       type: boolean
       default: true
       title: "Show prompt numbering"
       description: "Show the #N ordinal at the start of each prompt row."
+    display_2_show_time:
+      type: boolean
+      default: true
+      title: "Show prompt send time"
+      description: "Show the send time (clock) at the right edge of each prompt row. Hidden send time and duration together let the prompt text use the full row width."
+    display_3_time_format:
+      type: string
+      enum: ["relative", "absolute"]
+      default: "relative"
+      title: "Send time format"
+      description: "How the send time reads: compact relative (\"5m\"), or the absolute date and time in the host locale (short date and short time). The other form is shown on hover."
     display_4_show_duration:
       type: boolean
       default: true
@@ -103,7 +103,7 @@ config_schema:
       default: "normal"
       title: "Agent prompt style"
       description: "How prompts sent by another task's agent are shown: normal (the same bubble as other prompts), soft grey, or hidden entirely."
-  required: ["display_2_time_format", "display_5_agent_style"]
+  required: ["display_3_time_format", "display_5_agent_style"]
 
 # ui.bundle points at the ES module frontend half, built by ui/build.mjs into
 # ui/bundle.js and served by kandev from the extracted package at

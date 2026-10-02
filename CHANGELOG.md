@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.1] - 2026-10-02
+
+### Changed
+
+- Settings order is now **Show prompt numbering**, **Show prompt send time**,
+  **Send time format**, **Show prompt duration**, **Agent prompt style**, and the
+  format selector is labelled *Send time format* (it was "Prompt time format").
+- The keys were renumbered to match that order
+  (`display_1_show_numbers`, `display_2_show_time`, `display_3_time_format`,
+  `display_4_show_duration`, `display_5_agent_style`). The two unchanged keys keep
+  their stored values; the three renumbered ones (`show_numbers`, `show_time`,
+  `time_format`) are no longer read, so those settings show their defaults until
+  saved once on the settings page.
+
 ## [1.2.0] - 2026-10-02
 
 ### Added

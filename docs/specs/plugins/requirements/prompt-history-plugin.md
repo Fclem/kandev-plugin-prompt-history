@@ -184,8 +184,8 @@ host's standard plugin settings surface.
 #### Acceptance criteria
 
 - **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-004.1:** The manifest shall declare a
-  `config_schema` with exactly five properties — the duration, send-time and
-  numbering booleans plus the send-time format and agent-prompt style selectors
+  `config_schema` with exactly five properties — the numbering, send-time and
+  duration booleans plus the send-time format and agent-prompt style selectors
   (AC-…-004.6, AC-…-004.7) — each defaulting to the panel's original
   appearance, and shall mark both selectors required so the settings form
   cannot present an unset state for them. The host shall render them at
@@ -208,7 +208,7 @@ host's standard plugin settings surface.
   config; a saved change shall apply on the panel's next mount (a session or
   task switch, or a reload).
 - **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-004.6:** The manifest shall declare the
-  send-time format as a required selector (`display_2_time_format`) whose values
+  send-time format as a required selector (`display_3_time_format`) whose values
   are exactly `relative` and `absolute`, defaulting to `relative`, so the host's
   settings form presents only those two choices (no unset state) and every save
   submits one. The panel shall render the selected form as the row's send-time

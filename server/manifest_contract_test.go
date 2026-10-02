@@ -154,23 +154,23 @@ func TestManifestRuntimeContract(t *testing.T) {
 // (sorted), so the key is the only ordering lever. A renamed or renumbered key
 // therefore reorders the form, which is why the expected slice is pinned whole.
 var wantPanelConfigKeys = []string{
-	"display_1_show_time",
-	"display_2_time_format",
-	"display_3_show_numbers",
+	"display_1_show_numbers",
+	"display_2_show_time",
+	"display_3_time_format",
 	"display_4_show_duration",
 	"display_5_agent_style",
 }
 
 // The two selectors: the only non-boolean fields and the only required ones.
 const (
-	wantPanelDateFormatKey = "display_2_time_format"
+	wantPanelDateFormatKey = "display_3_time_format"
 	wantPanelAgentStyleKey = "display_5_agent_style"
 )
 
 // Every field except the two selectors is a boolean toggle.
 var wantPanelBooleanKeys = []string{
-	"display_1_show_time",
-	"display_3_show_numbers",
+	"display_1_show_numbers",
+	"display_2_show_time",
 	"display_4_show_duration",
 }
 

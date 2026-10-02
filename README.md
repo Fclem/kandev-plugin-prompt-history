@@ -41,9 +41,9 @@ settings looks exactly as it always did.
 
 | setting | control | default |
 |---|---|---|
-| Show prompt send time | switch | on |
-| Prompt time format | `relative` / `absolute` | `relative` |
 | Show prompt numbering | switch | on |
+| Show prompt send time | switch | on |
+| Send time format | `relative` / `absolute` | `relative` |
 | Show prompt duration | switch | on |
 | Agent prompt style | `normal` / `soft grey` / `hide` | `normal` |
 
@@ -66,7 +66,7 @@ The panel reads the stored config once per mount through the host's scoped
 `GET /api/plugins/<id>/config` (`ui/src/panel-config.ts`) and never writes it. A
 failed or unauthorized read keeps every affordance and surfaces no error, and a
 saved change applies the next time the panel mounts (a session or task switch, or
-a reload). The keys carry their form position (`display_1_show_time` …
+a reload). The keys carry their form position (`display_1_show_numbers` …
 `display_5_agent_style`) because the host renders the schema's keys as they
 arrive, sorted — the manifest's `properties` order is not preserved.
 

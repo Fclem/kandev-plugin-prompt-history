@@ -61,7 +61,7 @@ Manifest fields, per the [manifest reference](../../../public/plugins-manifest.m
 - `capabilities: { api_read: ["messages"] }` and only that capability.
 - `ui: { bundle: "/ui/bundle.js", styles: ["/ui/plugin.css"] }`. No
   `ui.pages`, `ui.keybindings`, webhooks, actions, or provider declarations.
-- `config_schema` — the five display settings of REQ-004 (send time, numbering
+- `config_schema` — the five display settings of REQ-004 (numbering, send time
   and duration booleans plus the time-format and agent-prompt-style selectors;
   each defaults to the reference's row, and both selectors are `required`,
   which is what removes the host form's "Not set" choice for them). The keys carry an explicit
@@ -460,7 +460,7 @@ The panel mirrors the core's pagination and reveal behavior:
   showing: under the relative ladder it is the absolute timestamp in the short
   date/short time style (`formatPromptDateTime`, the reference's
   `title={formatDateTime(...)}`), and under the absolute text (the operator's
-  `display_2_time_format: "absolute"`) it is the host's locale-aware relative
+  `display_3_time_format: "absolute"`) it is the host's locale-aware relative
   phrase. Both
   right-edge affordances, the `#N` ordinal, the date format and the agent
   prompt style are operator-toggleable (REQ-004).

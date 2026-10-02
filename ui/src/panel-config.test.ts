@@ -26,7 +26,7 @@ describe("readPanelDisplaySettings", () => {
       { config: null },
       { config: undefined },
       { config: [] },
-      { config: "display_1_show_time" },
+      { config: "display_2_show_time" },
     ]) {
       expect(readPanelDisplaySettings(payload)).toEqual(DEFAULT_PANEL_DISPLAY_SETTINGS);
     }
@@ -37,11 +37,11 @@ describe("readPanelDisplaySettings", () => {
       ...DEFAULT_PANEL_DISPLAY_SETTINGS,
       showDuration: false,
     });
-    expect(readPanelDisplaySettings({ config: { display_1_show_time: false } })).toEqual({
+    expect(readPanelDisplaySettings({ config: { display_2_show_time: false } })).toEqual({
       ...DEFAULT_PANEL_DISPLAY_SETTINGS,
       showTime: false,
     });
-    expect(readPanelDisplaySettings({ config: { display_3_show_numbers: false } })).toEqual({
+    expect(readPanelDisplaySettings({ config: { display_1_show_numbers: false } })).toEqual({
       ...DEFAULT_PANEL_DISPLAY_SETTINGS,
       showNumbers: false,
     });
@@ -56,21 +56,21 @@ describe("readPanelDisplaySettings", () => {
     expect(readPanelDisplaySettings({ config: { display_5_agent_style: "normal" } })).toEqual(
       DEFAULT_PANEL_DISPLAY_SETTINGS,
     );
-    expect(readPanelDisplaySettings({ config: { display_2_time_format: "absolute" } })).toEqual({
+    expect(readPanelDisplaySettings({ config: { display_3_time_format: "absolute" } })).toEqual({
       ...DEFAULT_PANEL_DISPLAY_SETTINGS,
       dateFormat: "absolute",
     });
-    expect(readPanelDisplaySettings({ config: { display_2_time_format: "relative" } })).toEqual(
+    expect(readPanelDisplaySettings({ config: { display_3_time_format: "relative" } })).toEqual(
       DEFAULT_PANEL_DISPLAY_SETTINGS,
     );
     expect(
       readPanelDisplaySettings({
         config: {
           display_4_show_duration: false,
-          display_1_show_time: false,
-          display_3_show_numbers: false,
+          display_2_show_time: false,
+          display_1_show_numbers: false,
           display_5_agent_style: "hide",
-          display_2_time_format: "absolute",
+          display_3_time_format: "absolute",
         },
       }),
     ).toEqual({
@@ -87,8 +87,8 @@ describe("readPanelDisplaySettings", () => {
       readPanelDisplaySettings({
         config: {
           display_4_show_duration: "false",
-          display_1_show_time: 0,
-          display_3_show_numbers: null,
+          display_2_show_time: 0,
+          display_1_show_numbers: null,
         },
       }),
     ).toEqual(DEFAULT_PANEL_DISPLAY_SETTINGS);
@@ -96,7 +96,7 @@ describe("readPanelDisplaySettings", () => {
 
   it("falls back to the default for an unknown enum member", () => {
     for (const value of ["Relative", "ABSOLUTE", "", "epoch", 1, null, true, {}]) {
-      expect(readPanelDisplaySettings({ config: { display_2_time_format: value } })).toEqual(
+      expect(readPanelDisplaySettings({ config: { display_3_time_format: value } })).toEqual(
         DEFAULT_PANEL_DISPLAY_SETTINGS,
       );
     }
@@ -111,9 +111,9 @@ describe("readPanelDisplaySettings", () => {
     // Mirrored by TestPanelConfigKeysAgreement in server (manifest vs. these
     // constants); this pin catches a rename that updates only the reader.
     expect(PANEL_CONFIG_KEYS).toEqual({
-      showTime: "display_1_show_time",
-      dateFormat: "display_2_time_format",
-      showNumbers: "display_3_show_numbers",
+      showNumbers: "display_1_show_numbers",
+      showTime: "display_2_show_time",
+      dateFormat: "display_3_time_format",
       showDuration: "display_4_show_duration",
       agentStyle: "display_5_agent_style",
     });

@@ -2362,9 +2362,9 @@ describe("PromptHistoryPanel display settings", () => {
     };
   }
 
-  it("hides the send time and keeps the duration when display_1_show_time is off", async () => {
+  it("hides the send time and keeps the duration when display_2_show_time is off", async () => {
     const { messages, turns } = boundedRow();
-    const { store } = renderPanel(messages, turns, {}, { config: { display_1_show_time: false } });
+    const { store } = renderPanel(messages, turns, {}, { config: { display_2_show_time: false } });
     await flushConfigRead();
 
     // The read is the plugin's own config route, once per mount.
@@ -2389,7 +2389,7 @@ describe("PromptHistoryPanel display settings", () => {
   it("drops the meta column so the prompt spans the full row when both are off", async () => {
     const { messages, turns } = boundedRow();
     renderPanel(messages, turns, {}, {
-      config: { display_1_show_time: false, display_4_show_duration: false },
+      config: { display_2_show_time: false, display_4_show_duration: false },
     });
     await flushConfigRead();
 
@@ -2402,9 +2402,9 @@ describe("PromptHistoryPanel display settings", () => {
     expect(row.children[0]?.className).toContain("ph-plugin-row-main");
   });
 
-  it("hides the ordinal when display_3_show_numbers is off", async () => {
+  it("hides the ordinal when display_1_show_numbers is off", async () => {
     const { messages, turns } = boundedRow();
-    renderPanel(messages, turns, {}, { config: { display_3_show_numbers: false } });
+    renderPanel(messages, turns, {}, { config: { display_1_show_numbers: false } });
     await flushConfigRead();
 
     const bubble = document.querySelector('[data-message-id="m"]');
@@ -2434,7 +2434,7 @@ describe("PromptHistoryPanel display settings", () => {
   it("keeps the shown-by-default row when the stored config omits or mistypes a key", async () => {
     const { messages, turns } = boundedRow();
     renderPanel(messages, turns, {}, {
-      config: { display_3_show_numbers: false, display_1_show_time: "false" },
+      config: { display_1_show_numbers: false, display_2_show_time: "false" },
     });
     await flushConfigRead();
 
@@ -2446,7 +2446,7 @@ describe("PromptHistoryPanel display settings", () => {
 
   it("shows the absolute date and hovers the relative form in absolute mode", async () => {
     const { messages, turns } = boundedRow();
-    renderPanel(messages, turns, {}, { config: { display_2_time_format: "absolute" } });
+    renderPanel(messages, turns, {}, { config: { display_3_time_format: "absolute" } });
     await flushConfigRead();
 
     const time = document.querySelector("time");
