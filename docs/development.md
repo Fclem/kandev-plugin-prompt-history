@@ -31,7 +31,7 @@ the binary is only the handshake.
 ## Layout
 
 ```
-manifest.yaml          # plugin manifest — id, capabilities, runtime.executables, ui.bundle + ui.styles
+manifest.yaml          # plugin manifest — id, capabilities, config_schema, runtime.executables, ui.bundle + ui.styles
 server/
   main.go              # pluginsdk.Serve wiring — no flags, no HTTP, no secrets
   plugin.go            # promptHistoryPlugin: embeds UnimplementedPlugin, no overridden RPCs

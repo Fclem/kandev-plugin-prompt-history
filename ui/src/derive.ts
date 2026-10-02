@@ -152,6 +152,49 @@ export type PromptAgeUnits = {
   d: string;
 };
 
+/** The absolute form the row shows: short numeric date and short time
+ * (`1/1/26, 12:30 AM` in `en`), the compact pair that fits the row's
+ * right-hand column and its tooltip. The parity reference's `formatDateTime`
+ * uses `dateStyle: "medium"` (`Jan 1, 2026, 12:30 AM`); the short date is a
+ * deliberate delta — the absolute form here is a real row state, not only a
+ * hover tooltip, so it has to stay narrow. */
+const DATE_TIME_OPTIONS: Intl.DateTimeFormatOptions = { dateStyle: "short", timeStyle: "short" };
+
+/** Per-locale formatters, mirroring the reference's cached
+ * `Intl.RelativeTimeFormat` map: a row re-renders on every live update, and
+ * constructing a formatter per row per render is avoidable work. */
+const dateTimeFormatters = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * Format a prompt's timestamp as the absolute date and time in the host
+ * locale, in the short date/short time form (`DATE_TIME_OPTIONS`). It is the
+ * row's visible text when the operator selects the absolute prompt time
+ * format, and the hover title otherwise (the reference always hovers the
+ * absolute form; this plugin inverts it with the visible form, so the tooltip
+ * is never the text already on screen).
+ *
+ * `pseudo` is a QA locale with no CLDR data, so it maps to `en` exactly as
+ * the reference's `intlLocale()` does. An unparseable timestamp formats as
+ * "" and an unusable locale tag falls back to `en` rather than throwing
+ * inside a row render.
+ */
+export function formatPromptDateTime(sentAt: string, locale: string): string {
+  const parsed = Date.parse(sentAt);
+  if (Number.isNaN(parsed)) return "";
+  const resolved = locale === "pseudo" ? "en" : locale || "en";
+  const cached = dateTimeFormatters.get(resolved);
+  if (cached) return cached.format(parsed);
+  try {
+    const formatter = new Intl.DateTimeFormat(resolved, DATE_TIME_OPTIONS);
+    dateTimeFormatters.set(resolved, formatter);
+    return formatter.format(parsed);
+  } catch {
+    const fallback = new Intl.DateTimeFormat("en", DATE_TIME_OPTIONS);
+    dateTimeFormatters.set(resolved, fallback);
+    return fallback.format(parsed);
+  }
+}
+
 /**
  * Format a prompt's age as the compact relative label the parity reference's
  * row shows — `just now` / `5m` / `5h` / `3d`, with no "ago".

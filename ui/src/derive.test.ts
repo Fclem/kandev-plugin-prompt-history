@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { derivePromptHistoryRows, formatPromptAge, formatPromptDuration } from "./derive";
+import {
+  derivePromptHistoryRows,
+  formatPromptAge,
+  formatPromptDateTime,
+  formatPromptDuration,
+} from "./derive";
 import type { PluginConversationMessage, PluginConversationTurn } from "./host";
 
 function message(
@@ -194,5 +199,52 @@ describe("formatPromptAge", () => {
   it("returns an empty label for unusable timestamps", () => {
     expect(formatPromptAge("", units, now)).toBe("");
     expect(formatPromptAge("not a date", units, now)).toBe("");
+  });
+});
+
+describe("formatPromptDateTime", () => {
+  const sentAt = "2026-01-01T12:30:00Z";
+
+  /** The format the panel applies, built here independently so this pins the
+   * options (short date, short time) rather than an ICU spelling that shifts
+   * between runtimes. */
+  function expected(locale: string): string {
+    return new Intl.DateTimeFormat(locale, {
+      dateStyle: "short",
+      timeStyle: "short",
+    }).format(new Date(sentAt));
+  }
+
+  it("formats the timestamp in the host locale", () => {
+    expect(formatPromptDateTime(sentAt, "en")).toBe(expected("en"));
+    // Short date, short time: a numeric date, not the medium style's
+    // `Jan 1, 2026` month name.
+    expect(formatPromptDateTime(sentAt, "en")).toMatch(/^\d{1,2}\/\d{1,2}\/\d{2}, \d{1,2}:\d{2}[\s\u202f]?(AM|PM)$/);
+    expect(formatPromptDateTime(sentAt, "en")).not.toBe(
+      new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(
+        new Date(sentAt),
+      ),
+    );
+    // A non-UTC instant is rendered in the runtime's zone, so compare against
+    // the same construction rather than a literal.
+    expect(formatPromptDateTime("2026-01-01T00:00:00+02:00", "en")).toBe(
+      new Intl.DateTimeFormat("en", { dateStyle: "short", timeStyle: "short" }).format(
+        new Date("2026-01-01T00:00:00+02:00"),
+      ),
+    );
+  });
+
+  it("maps the pseudo locale to English, as the reference does", () => {
+    expect(formatPromptDateTime(sentAt, "pseudo")).toBe(expected("en"));
+  });
+
+  it("falls back to English for an empty or unusable locale", () => {
+    expect(formatPromptDateTime(sentAt, "")).toBe(expected("en"));
+    expect(formatPromptDateTime(sentAt, "not a locale tag !!")).toBe(expected("en"));
+  });
+
+  it("returns an empty label for unusable timestamps", () => {
+    expect(formatPromptDateTime("", "en")).toBe("");
+    expect(formatPromptDateTime("not a date", "en")).toBe("");
   });
 });

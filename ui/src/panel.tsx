@@ -14,6 +14,7 @@ import type { PluginTaskPanelProps } from "./host";
 import {
   derivePromptHistoryRows,
   formatPromptAge,
+  formatPromptDateTime,
   formatPromptDuration,
   type PromptHistoryRow,
 } from "./derive";
@@ -22,6 +23,10 @@ import {
   applyOpenMessageOutcome,
   shouldPaginate,
 } from "./panel-state";
+import {
+  usePanelDisplaySettings,
+  type PanelDisplaySettings,
+} from "./panel-config";
 import { host } from "./host";
 
 const SENTINEL_TEST_ID = "ph-plugin-sentinel";
@@ -115,6 +120,8 @@ type RowProps = {
   sessionId: string | null;
   expanded: boolean;
   maxHeight: string;
+  display: PanelDisplaySettings;
+  locale: string;
   onToggle: () => void;
   onNavigate: (messageId: string) => void;
   t: (key: string, options?: Record<string, unknown>) => string;
@@ -136,6 +143,8 @@ function PromptHistoryRow({
   sessionId,
   expanded,
   maxHeight,
+  display,
+  locale,
   onToggle,
   onNavigate,
   t,
@@ -181,15 +190,15 @@ function PromptHistoryRow({
       <div className="ph-plugin-row-main">
         <div
           className={`ph-plugin-row-bubble markdown-body markdown-body-user${
-            isFavorite ? " ph-plugin-favorite" : ""
-          }`}
+            row.isAgentPrompt && display.agentPromptStyle === "soft grey" ? " ph-plugin-agent" : ""
+          }${isFavorite ? " ph-plugin-favorite" : ""}`}
           data-message-id={row.messageId}
           onClick={(event) => {
             if (isNestedInteractiveTarget(event.target, event.currentTarget)) return;
             onNavigate(row.messageId);
           }}
         >
-          {row.promptNumber !== null && (
+          {display.showNumbers && row.promptNumber !== null && (
             <span className="ph-plugin-number" aria-hidden="true">
               #{row.promptNumber}
             </span>
@@ -236,27 +245,44 @@ function PromptHistoryRow({
           onClick={() => onNavigate(row.messageId)}
         />
       </div>
-      <div className="ph-plugin-row-meta">
-        <time dateTime={row.sentAt} title={formatRelativeTime(row.sentAt)} className="ph-plugin-row-time">
-          <PanelIcon className="ph-plugin-meta-icon" name="clock" />
-          {formatPromptAge(row.sentAt, {
-            justNow: t("promptAgeJustNow"),
-            m: t("durationUnitMinutes"),
-            h: t("durationUnitHours"),
-            d: t("durationUnitDays"),
-          })}
-        </time>
-        {row.durationSeconds !== null && (
-          <span className="ph-plugin-duration" data-testid={`ph-plugin-duration-${index}`}>
-            <PanelIcon className="ph-plugin-meta-icon" name="hourglass" />
-            {formatPromptDuration(row.durationSeconds, {
-              s: t("durationUnitSeconds"),
-              m: t("durationUnitMinutes"),
-              h: t("durationUnitHours"),
-            })}
-          </span>
-        )}
-      </div>
+      {(display.showTime || display.showDuration) && (
+        <div className="ph-plugin-row-meta">
+          {display.showTime && (
+            <time
+              dateTime={row.sentAt}
+              // The hover is the form the row is not showing: the parity
+              // reference hovers the absolute date under its compact relative
+              // text, so the tooltip always adds information.
+              title={
+                display.dateFormat === "absolute"
+                  ? formatRelativeTime(row.sentAt)
+                  : formatPromptDateTime(row.sentAt, locale)
+              }
+              className="ph-plugin-row-time"
+            >
+              <PanelIcon className="ph-plugin-meta-icon" name="clock" />
+              {display.dateFormat === "absolute"
+                ? formatPromptDateTime(row.sentAt, locale)
+                : formatPromptAge(row.sentAt, {
+                    justNow: t("promptAgeJustNow"),
+                    m: t("durationUnitMinutes"),
+                    h: t("durationUnitHours"),
+                    d: t("durationUnitDays"),
+                  })}
+            </time>
+          )}
+          {display.showDuration && row.durationSeconds !== null && (
+            <span className="ph-plugin-duration" data-testid={`ph-plugin-duration-${index}`}>
+              <PanelIcon className="ph-plugin-meta-icon" name="hourglass" />
+              {formatPromptDuration(row.durationSeconds, {
+                s: t("durationUnitSeconds"),
+                m: t("durationUnitMinutes"),
+                h: t("durationUnitHours"),
+              })}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -663,7 +689,8 @@ function usePanelOlderPromptSentinel(opts: {
 export function PromptHistoryPanel(props: PluginTaskPanelProps) {
   const { sessionId, taskId, sessionKind, conversation } = props;
   const h = host();
-  const t = h.i18n.useTranslation().t;
+  const { t, locale } = h.i18n.useTranslation();
+  const display = usePanelDisplaySettings();
   const rootRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -681,6 +708,14 @@ export function PromptHistoryPanel(props: PluginTaskPanelProps) {
   const rows = useMemo(
     () => derivePromptHistoryRows(messagesState.messages, turnsState.turns, turnsHydrated),
     [messagesState.messages, turnsState.turns, turnsHydrated],
+  );
+  // The `hide` agent-prompt style drops those rows from the list. Paging still
+  // keys off every derived row, not the visible ones: a hidden `#1` must not
+  // keep the sentinel loading older pages that can never complete the list.
+  const visibleRows = useMemo(
+    () =>
+      display.agentPromptStyle === "hide" ? rows.filter((row) => !row.isAgentPrompt) : rows,
+    [rows, display.agentPromptStyle],
   );
   const state = determinePanelState(messagesState, sessionKind);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -855,7 +890,7 @@ export function PromptHistoryPanel(props: PluginTaskPanelProps) {
         onTouchStart={shouldAutoLoad ? onScrollerTouchStart : undefined}
       >
         <div className="ph-plugin-rows" ref={contentRef}>
-          {rows.map((row, index) => (
+          {visibleRows.map((row, index) => (
             <PromptHistoryRow
               key={row.messageId}
               row={row}
@@ -863,6 +898,8 @@ export function PromptHistoryPanel(props: PluginTaskPanelProps) {
               sessionId={sessionId}
               expanded={expanded === row.messageId}
               maxHeight={maxHeight}
+              display={display}
+              locale={locale}
               onToggle={() => setExpanded(expanded === row.messageId ? null : row.messageId)}
               onNavigate={onNavigate}
               t={t}

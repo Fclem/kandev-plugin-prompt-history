@@ -60,8 +60,20 @@ Manifest fields, per the [manifest reference](../../../public/plugins-manifest.m
   confirm the browser facade needs no plugin backend).
 - `capabilities: { api_read: ["messages"] }` and only that capability.
 - `ui: { bundle: "/ui/bundle.js", styles: ["/ui/plugin.css"] }`. No
-  `ui.pages`, `ui.keybindings`, webhooks, actions, `config_schema`, or
-  provider declarations.
+  `ui.pages`, `ui.keybindings`, webhooks, actions, or provider declarations.
+- `config_schema` — the five display settings of REQ-004 (send time, numbering
+  and duration booleans plus the time-format and agent-prompt-style selectors;
+  each defaults to the reference's row, and both selectors are `required`,
+  which is what removes the host form's "Not set" choice for them). The keys carry an explicit
+  `display_<n>_` render-order prefix because the host renders
+  `Object.keys(properties)` from the JSON it is handed, and the backend
+  marshals the schema from a Go map — sorted — so the manifest's declaration
+  order never reaches the form and the key name is the only ordering lever a
+  plugin has. This is the plugin's only
+  operator-configurable surface, and the host owns persistence: the settings
+  page renders the form and PATCHes it, the panel only reads
+  `GET /api/plugins/{id}/config`. The read is not capability-gated (unlike
+  the conversation route), so the manifest declares no additional capability.
 - Packaging stages only `manifest.yaml`, the built `ui/bundle.js` and
   `ui/plugin.css`, and the five `server/plugin-<goos>-<goarch>` executables
   (mirroring `kandev-plugin-voice`'s `stage_common`); the `ui/` source tree,
@@ -167,6 +179,31 @@ Module layout:
   automated assertion. Deliberate delta: the plugin also puts
   `role="status"` on the empty state; the core's empty and passthrough
   states are plain divs with no role.
+- `ui/src/panel-config.ts` — the operator display settings (REQ-004). The pure
+  `readPanelDisplaySettings` maps the `{ config: {...} }` envelope from
+  `GET /api/plugins/{id}/config` to four booleans and the `relative`/`absolute`
+  date format (absent, mistyped, or unreadable values keep the default; the
+  enum is total — only `"absolute"` selects the absolute form), and
+  `usePanelDisplaySettings` performs one `host.api.fetch("/config")` per mount
+  with `cache: "no-store"` and aborts it on unmount. The panel gates the `#N`
+  ordinal, the send time, and the duration on those booleans, renders no
+  `.ph-plugin-row-meta` column at all when both right-hand affordances are off
+  (so the bubble spans the row and its right margin equals its left), swaps the
+  send-time text between the compact relative ladder and the absolute
+  locale-formatted date (with the other form as the hover title), and applies
+  the agent-prompt style — adding the `ph-plugin-agent` bubble class for
+  `soft grey`, or filtering agent-sent rows out of the rendered list for
+  `hide` while paging keeps keying off every derived row (a hidden `#1` must
+  not send the sentinel hunting for a list it can never complete). A failed or
+  non-2xx read keeps every affordance and surfaces no error; config is only
+  ever read, never written.
+- `ui/src/derive.ts` `formatPromptDateTime` — the absolute send-time form:
+  the host-locale date and time with short date and short time styles
+  (`1/1/26, 12:30 AM` in `en`; the reference's `formatDateTime` passes no
+  options and so renders the wider `Jan 1, 2026, 12:30 AM`, a deliberate delta
+  because here the absolute form is a real row state, not only a tooltip),
+  `pseudo` → `en`, with a per-locale formatter cache; it falls back to `en` for
+  an unusable locale tag rather than throwing inside a row render.
 - `ui/plugin.css` — the plugin-owned stylesheet, declared as
   `ui.styles: ["/ui/plugin.css"]` in the manifest. The bundle is built in a
   separate repository and imported at runtime from
@@ -198,6 +235,15 @@ Module layout:
   tablet keeps the 44 px row and the 44 px expand control is not clipped by
   the bubble's `overflow: hidden` (measured in Chromium at 1024 px: a 33 px
   bubble left the top and bottom of the nominal 44 px target unhittable).
+  The two colour variants the operator can select are ordered by specificity
+  rather than source order: `.ph-plugin-row-bubble.ph-plugin-agent` (the
+  opt-in soft grey, `var(--muted-foreground)` at 14%) and
+  `.ph-plugin-row-bubble.ph-plugin-favorite` (the host favorite highlight)
+  carry the same two-class specificity, so the favorite rule is declared last
+  and a prompt that is both agent-sent and favorited keeps the highlight; the
+  `.dark` favorite rule outranks both. `color-mix` was already the
+  stylesheet's colour model (the default bubble and the favorite highlight),
+  so the agent variant adds no new browser requirement.
 - `ui/src/derive.ts` — pure entry derivation from the Host DTOs: `#N`
   ordinal from `promptIndex`, agent-sent flag from `senderTaskId`, and
   duration bounded by the earlier of turn completion and the
@@ -410,15 +456,23 @@ The panel mirrors the core's pagination and reveal behavior:
   `formatRelativeTime` is exposed to plugins, so the ladder is reproduced
   in `ui/src/derive.ts` (`formatPromptAge`) with the reference's buckets
   (floored seconds/minutes, 60 s / 60 m / 24 h boundaries) and the
-  plugin's own catalog labels; the `title` keeps the host's locale-aware
-  long form.
+  plugin's own catalog labels. The hover title is the form the row is *not*
+  showing: under the relative ladder it is the absolute timestamp in the short
+  date/short time style (`formatPromptDateTime`, the reference's
+  `title={formatDateTime(...)}`), and under the absolute text (the operator's
+  `display_2_time_format: "absolute"`) it is the host's locale-aware relative
+  phrase. Both
+  right-edge affordances, the `#N` ordinal, the date format and the agent
+  prompt style are operator-toggleable (REQ-004).
 
 ## Persistence
 
-The plugin owns no durable state. Favorites, custom-prompt aliases, and
-conversation rows are host-owned; the no-op backend executable stores
-nothing. Uninstall removes the panel registration and the Host-managed
-plugin record; no plugin data directory is written.
+The plugin owns no durable state and writes nothing. Favorites, custom-prompt
+aliases, and conversation rows are host-owned; the operator display settings
+live in the plugin's host-owned `config_schema` record, written only by the
+host's settings page and read by the panel; the no-op backend executable stores
+nothing. Uninstall removes the panel registration and the Host-managed plugin
+record (with its stored config); no plugin data directory is written.
 
 ## Security
 
@@ -426,8 +480,11 @@ plugin record; no plugin data directory is written.
   capability gate on `/api/plugins/{id}/conversation/...` enforces it.
 - Same-origin native plugin: the bundle runs in the Kandev origin with Host
   store access; it does not read `host.store`, import `apps/web` modules, or
-  call unscoped `/api/v1` routes.
-- No secrets, webhooks, or inbound routes. No operator settings.
+  call unscoped `/api/v1` routes. Its one direct request is the plugin-scoped
+  config read (`host.api.fetch("/config")`), which the host resolves under
+  `/api/plugins/{id}/` with the session cookie.
+- No secrets, webhooks, or inbound routes. The only operator settings are the
+  three boolean display toggles; the panel reads them and never writes config.
 
 ## Parity proof
 
