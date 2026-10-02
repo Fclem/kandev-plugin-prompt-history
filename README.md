@@ -95,8 +95,6 @@ transport.
   is the plugin-scoped `GET /api/plugins/<id>/config` read behind
   [Settings](#settings), which is not a capability-gated route. No events, state,
   secrets, or write access.
-- **No-op backend.** `server/` embeds `pluginsdk.UnimplementedPlugin` and
-  overrides no RPCs — the conversation facade needs no backend logic.
 - **Parity by construction.** Rows mirror the shipped core panel: same bubble
   styling (including the host's `markdown-body` classes), same Tabler glyphs, same
   compact time ladder, same pointer-dependent row heights.
