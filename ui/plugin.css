@@ -418,6 +418,22 @@
   left: -7px;
 }
 
+/* Marks the unfolded prompts as one agent-prompt group. */
+.ph-plugin-stack-rows {
+  position: relative;
+  padding-left: 0.5rem;
+}
+
+.ph-plugin-stack-rows::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: var(--primary, #3b82f6);
+  content: "";
+}
+
 /* The expanded header is a slim label, not a row: no row padding. */
 .ph-plugin-row.ph-plugin-stack-head {
   padding: 0;

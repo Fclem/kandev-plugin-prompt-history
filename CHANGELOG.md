@@ -1,6 +1,20 @@
 # Changelog
 
+## [1.4.1] - 2026-10-03
+
+### Fixed
+
+- Bump the plugin version so the updated package can be installed alongside
+  the already-installed 1.4.0 release.
+
 ## [1.4.0] - 2026-10-03
+
+### Changed
+
+- Expanded agent prompt groups now have a thin blue left rule when prompt
+  collapsing is enabled.
+- The README links to a dedicated settings guide instead of carrying the full
+  settings reference.
 
 ### Added
 
