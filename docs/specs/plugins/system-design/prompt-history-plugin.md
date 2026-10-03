@@ -43,7 +43,7 @@ derived `PKG_OUT`, and the `window.registerKandevPlugin` id:
 Manifest fields, per the [manifest reference](../../../public/plugins-manifest.md):
 
 - `id: "kandev-plugin-prompt-history"`, `api_version: 2`,
-  `version: "1.3.0"`, `display_name: "Prompt History"`, a one-line
+  `version: "1.3.1"`, `display_name: "Prompt History"`, a one-line
   `description`, `author: "kandev"`, `categories: ["tools"]`, and
   `repo_url: "https://github.com/Fclem/kandev-plugin-prompt-history"` (the
   publishing repo; the scaffold's `kdlbs/…` placeholder 404s).

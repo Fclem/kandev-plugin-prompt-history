@@ -109,7 +109,7 @@ kandev **0.95.0 or newer**, with the `plugins` feature enabled.
 
 1. **Settings > Plugins**, then install **Prompt History** from the marketplace —
    or upload/point at the release package
-   (`kandev-plugin-prompt-history-1.3.0.tar.gz`).
+   (`kandev-plugin-prompt-history-1.3.1.tar.gz`).
 2. Open a task's panel menu and pick **Prompt History**.
 
 To install against a running instance from the command line, see
