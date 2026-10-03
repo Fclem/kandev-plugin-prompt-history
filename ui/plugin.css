@@ -285,8 +285,8 @@
   padding: 0.25rem 0;
 }
 
-/* The toggle stays mounted in both states: the deck while folded, a small
- * count chip while expanded. Keeping one node is what stops the swap from
+/* The toggle stays mounted in both states: the deck while folded, a compact
+ * count header while expanded. Keeping one node is what stops the swap from
  * dropping the keyboard focus that expanded the card. */
 .ph-plugin-stack-toggle {
   display: block;
@@ -306,57 +306,107 @@
 }
 
 /* Reserves the sheets' 4px/8px overhang so nothing clips at the scroller's
- * edge and the folded card occupies a plain row's box. */
+ * edge and the folded card occupies a plain row's box. `isolation` makes the
+ * deck its own stacking context, so the z-indexes below order its parts without
+ * leaking into the rest of the panel. */
 .ph-plugin-stack-deck {
   position: relative;
   display: block;
+  isolation: isolate;
   margin: 0 8px 8px 0;
 }
 
-/* The outlines under the front bubble. Same colour model as the soft-grey
- * agent bubble — `color-mix` over `var(--muted-foreground)`, which the host
- * repaints per theme — one step lighter for the fill and stronger for the
- * outline, so both light and dark themes read a deck rather than a second,
- * darker bubble. */
+/* The cards under the front bubble. Same colour model as the soft-grey agent
+ * bubble — `color-mix` over `var(--muted-foreground)`, which the host repaints
+ * per theme — but laid over an opaque `var(--card)` base: a translucent card
+ * would let the cards behind it show through, and the outlines would read
+ * *on top of* the front bubble instead of behind it. Opaque, only the strips
+ * that stick out past the front bubble (right and bottom) are visible. */
 .ph-plugin-stack-sheet {
   position: absolute;
   inset: 0;
   border: 1px solid color-mix(in srgb, var(--muted-foreground, #71717a) 32%, transparent);
   border-radius: var(--radius, 0.375rem);
-  background: color-mix(in srgb, var(--muted-foreground, #71717a) 8%, transparent);
+  background:
+    linear-gradient(
+      color-mix(in srgb, var(--muted-foreground, #71717a) 8%, transparent),
+      color-mix(in srgb, var(--muted-foreground, #71717a) 8%, transparent)
+    ),
+    var(--card, #ffffff);
 }
 
-/* The deck's two outlines are its first two spans and the front bubble is the
+/* The deck's two cards are its first two spans and the front bubble is the
  * third, so `nth-of-type` (which counts spans, not children) targets the
  * sheets by position. `:first-of-type`/`:last-of-type` would not: the front
- * span is the last span, so the second sheet matched neither and stayed
- * un-offset — measured in Chromium, where only one outline showed. */
+ * span is not the last span, and the second sheet matched neither and stayed
+ * un-offset — measured in Chromium, where only one outline showed. The nearer
+ * card (4px) sits in front of the farther one (8px). */
 .ph-plugin-stack-sheet:nth-of-type(1) {
+  z-index: 1;
   transform: translate(4px, 4px);
 }
 
 .ph-plugin-stack-sheet:nth-of-type(2) {
+  z-index: 0;
   transform: translate(8px, 8px);
 }
 
-/* The run's newest prompt, painted above both sheets. */
-.ph-plugin-stack-front {
+/* The run's newest prompt, painted above both cards. Its own fill is made
+ * opaque the same way (the two-class selector outranks the translucent
+ * `.ph-plugin-row-bubble.ph-plugin-agent` rule above). */
+.ph-plugin-row-bubble.ph-plugin-stack-front {
   position: relative;
-  z-index: 1;
+  z-index: 2;
+  background:
+    linear-gradient(
+      color-mix(in srgb, var(--muted-foreground, #71717a) 14%, transparent),
+      color-mix(in srgb, var(--muted-foreground, #71717a) 14%, transparent)
+    ),
+    var(--card, #ffffff);
 }
 
+/* How many prompts the card folds, floating on its top-right corner. The ring
+ * in the card colour separates it from the bubble behind it. */
+.ph-plugin-stack-count {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  z-index: 3;
+  box-sizing: border-box;
+  min-width: 1rem;
+  height: 1rem;
+  padding: 0 0.25rem;
+  border-radius: 9999px;
+  background: var(--muted-foreground, #71717a);
+  box-shadow: 0 0 0 2px var(--card, #ffffff);
+  color: var(--card, #ffffff);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1rem;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* The expanded header is a slim label, not a row: no row padding. */
+.ph-plugin-row.ph-plugin-stack-head {
+  padding: 0;
+}
+
+/* The label is block-level (`flex` + `fit-content`, not `inline-flex`) so it
+ * adds no line-box strut around itself — an inline label sat in a 24px box for
+ * a 16px chip in Chromium. */
 .ph-plugin-stack-label {
-  display: inline-flex;
+  display: flex;
+  width: fit-content;
   align-items: center;
   gap: 0.125rem;
-  margin: 0.125rem 0;
-  padding: 0.0625rem 0.5rem;
+  padding: 0 0.5rem;
   border: 1px solid color-mix(in srgb, var(--muted-foreground, #71717a) 32%, transparent);
   border-radius: 9999px;
   background: color-mix(in srgb, var(--muted-foreground, #71717a) 10%, transparent);
   color: var(--muted-foreground, #71717a);
   font-size: 11px;
-  line-height: 1.5;
+  line-height: 1.25;
 }
 
 .ph-plugin-stack-icon {

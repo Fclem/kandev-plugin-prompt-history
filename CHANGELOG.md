@@ -6,17 +6,33 @@
 
 - **Agent prompt style `collapse`**: a fourth value for the
   `display_5_agent_style` selector. Each run of consecutive agent-sent prompts
-  folds into one stacked card — the run's newest prompt on a grey front bubble
-  with two offset outlines behind it, reading as a small deck in both themes.
-  Hovering the card unfolds the run and moving the pointer off it folds it back;
-  the card is also a real `button` with `aria-expanded` and a catalog label, so
-  it unfolds on focus and toggles with Enter/Space (`Tab` into it to read the
-  run).
+  folds into one stacked card — the run's newest prompt on a grey front bubble,
+  with two more cards behind it that only show along its right and bottom
+  edges, reading as a small deck in both themes — with a small badge on its
+  top-right corner counting the prompts it folds. Hovering the card unfolds the
+  run under a slim `N agent prompts` header (no time or duration of its own)
+  and moving the pointer off it folds it back; the card is also a real `button`
+  with `aria-expanded` and a catalog label, so it unfolds on focus and toggles
+  with Enter/Space (`Tab` into it to read the run).
+- **New setting, `Minimum agent prompts to stack`** (`display_6_agent_stack_min`,
+  2 to 5, default 2): how long a run of consecutive agent prompts must be to
+  fold. A shorter run stays as separate grey rows. The setting only applies to
+  `collapse`, but the host's settings form has no conditional visibility (it
+  renders every declared property from its name, title, description, type, enum,
+  default and `required`), so it is always listed and its description says when
+  it applies.
+- A tall unfolded run hands the view back when it folds: if you scrolled down
+  through it and the pointer ended up over the next prompt (or it folded for any
+  other reason), the list scrolls back so the folded card and the next
+  non-agent prompt sit exactly where they did before you unfolded it. Scrolling
+  up past the run is left alone, and the folded card does not unfold again until
+  the pointer actually moves (otherwise the hand-back would put it back under the
+  stationary pointer and it would reopen at once).
 - The card's meta column shows the front (newest) prompt's own send time and
   duration; the unfolded rows keep their ordinals, robot glyph, long-text expand
-  control, transcript navigation, and favorite highlight. A run of exactly one
-  agent prompt keeps the plain grey row (nothing to fold), and `collapse` paints
-  every agent prompt grey, stacked or not.
+  control, transcript navigation, and favorite highlight. Agent prompts outside
+  a stack keep the plain grey row (nothing to fold), and `collapse` paints every
+  agent prompt grey, stacked or not.
 - Folding changes neither numbering nor pagination: ordinals stay the server's
   `promptIndex` values, and paging still keys off every derived row, so a folded
   run whose oldest member is `#1` still stops older-page loading.

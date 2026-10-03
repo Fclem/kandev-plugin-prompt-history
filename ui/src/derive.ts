@@ -129,27 +129,34 @@ export function derivePromptHistoryRows(
 
 /**
  * One rendered unit of the prompt list under `display_5_agent_style:
- * collapse`: either a single row (every non-agent row, and a lone agent row —
- * a run of one has nothing to fold, so it keeps the plain row and the grey
- * bubble) or a stack of two or more consecutive agent-sent rows. The panel
- * renders a `stack` as one folded card; `row` renders exactly as every other
- * mode's row.
+ * collapse`: either a single row (every non-agent row, and every agent row of a
+ * run shorter than the operator's minimum — such a run has nothing to fold, so
+ * its rows keep the plain row and the grey bubble) or a stack of at least that
+ * many consecutive agent-sent rows. The panel renders a `stack` as one folded
+ * card; `row` renders exactly as every other mode's row.
  */
 export type PromptHistoryRowGroup =
   | { kind: "row"; startIndex: number; row: PromptHistoryRow }
   | { kind: "stack"; startIndex: number; front: PromptHistoryRow; rest: PromptHistoryRow[] };
 
 /**
- * Fold each run of consecutive agent-sent rows into one `stack` group, in the
- * derived list's own page order (newest first, no re-sort). `front` is the run's
- * newest row — the one the folded card shows and whose send time and duration
- * the card's meta column reports — and `rest` holds the older rows it covers.
+ * Fold each run of at least `minRun` consecutive agent-sent rows into one
+ * `stack` group, in the derived list's own page order (newest first, no
+ * re-sort); shorter runs stay one `row` group per row. `minRun` is the
+ * operator's `display_6_agent_stack_min` (2 to 5); a value below 2 would stack
+ * a lone row, so it is clamped to 2. `front` is the run's newest row — the one
+ * the folded card shows and whose send time and duration the card's meta column
+ * reports — and `rest` holds the older rows it covers.
  * Grouping is a presentation concern only: it runs after `derive` on the
  * already-filtered rows, so ordinals stay the server's `promptIndex` values,
  * nothing is renumbered, and pagination still keys off every derived row (a
  * stack whose oldest member is `#1` still stops the sentinel).
  */
-export function groupPromptHistoryRows(rows: readonly PromptHistoryRow[]): PromptHistoryRowGroup[] {
+export function groupPromptHistoryRows(
+  rows: readonly PromptHistoryRow[],
+  minRun: number,
+): PromptHistoryRowGroup[] {
+  const threshold = Math.max(2, minRun);
   const groups: PromptHistoryRowGroup[] = [];
   let index = 0;
   while (index < rows.length) {
@@ -165,11 +172,13 @@ export function groupPromptHistoryRows(rows: readonly PromptHistoryRow[]): Promp
     let end = index;
     while (end < rows.length && rows[end]?.isAgentPrompt) end += 1;
     const run = rows.slice(index, end);
-    groups.push(
-      run.length === 1
-        ? { kind: "row", startIndex: index, row }
-        : { kind: "stack", startIndex: index, front: row, rest: run.slice(1) },
-    );
+    if (run.length >= threshold) {
+      groups.push({ kind: "stack", startIndex: index, front: row, rest: run.slice(1) });
+    } else {
+      run.forEach((member, offset) =>
+        groups.push({ kind: "row", startIndex: index + offset, row: member }),
+      );
+    }
     index = end;
   }
   return groups;

@@ -159,15 +159,17 @@ var wantPanelConfigKeys = []string{
 	"display_3_time_format",
 	"display_4_show_duration",
 	"display_5_agent_style",
+	"display_6_agent_stack_min",
 }
 
-// The two selectors: the only non-boolean fields and the only required ones.
+// The three selectors: the only non-boolean fields and the only required ones.
 const (
-	wantPanelDateFormatKey = "display_3_time_format"
-	wantPanelAgentStyleKey = "display_5_agent_style"
+	wantPanelDateFormatKey    = "display_3_time_format"
+	wantPanelAgentStyleKey    = "display_5_agent_style"
+	wantPanelAgentStackMinKey = "display_6_agent_stack_min"
 )
 
-// Every field except the two selectors is a boolean toggle.
+// Every field except the three selectors is a boolean toggle.
 var wantPanelBooleanKeys = []string{
 	"display_1_show_numbers",
 	"display_2_show_time",
@@ -238,8 +240,22 @@ func TestPanelConfigKeysAgreement(t *testing.T) {
 	if !strings.Contains(agentStyle, `default: "normal"`) {
 		t.Errorf("manifest config_schema %s does not default to \"normal\"", wantPanelAgentStyleKey)
 	}
+	// The stack minimum is an integer selector offering exactly 2 to 5,
+	// defaulting to 2 (a run of two is the smallest thing worth folding), and
+	// required for the same reason. The host's form has no conditional
+	// visibility, so it is declared like any other field and always rendered.
+	stackMin := captureDeclaration(t, block, `(?m)^    `+wantPanelAgentStackMinKey+`:\n((?:      [^\n]*\n)+)`, "manifest.yaml")
+	if !strings.Contains(stackMin, "type: integer\n") {
+		t.Errorf("manifest config_schema %s is not an integer: %q", wantPanelAgentStackMinKey, stackMin)
+	}
+	if !strings.Contains(stackMin, `enum: [2, 3, 4, 5]`) {
+		t.Errorf("manifest config_schema %s enum = %q, want [2, 3, 4, 5]", wantPanelAgentStackMinKey, stackMin)
+	}
+	if !strings.Contains(stackMin, "default: 2\n") {
+		t.Errorf("manifest config_schema %s does not default to 2", wantPanelAgentStackMinKey)
+	}
 	required := captureDeclaration(t, block, `(?m)^  required: (.+)$`, "manifest.yaml")
-	wantRequired := `["` + wantPanelDateFormatKey + `", "` + wantPanelAgentStyleKey + `"]`
+	wantRequired := `["` + wantPanelDateFormatKey + `", "` + wantPanelAgentStyleKey + `", "` + wantPanelAgentStackMinKey + `"]`
 	if required != wantRequired {
 		t.Errorf("manifest config_schema required = %s, want %s", required, wantRequired)
 	}
@@ -250,5 +266,9 @@ func TestPanelConfigKeysAgreement(t *testing.T) {
 	panelAgentStyleLiterals := regexp.MustCompile(`(?m)^export const PANEL_AGENT_PROMPT_STYLES = \["normal", "soft grey", "hide", "collapse"\] as const;`)
 	if !panelAgentStyleLiterals.MatchString(panelConfig) {
 		t.Errorf("ui/src/panel-config.ts does not declare PANEL_AGENT_PROMPT_STYLES as the manifest's four values")
+	}
+	panelAgentStackMinLiterals := regexp.MustCompile(`(?m)^export const PANEL_AGENT_STACK_MIN_RUNS = \[2, 3, 4, 5\] as const;`)
+	if !panelAgentStackMinLiterals.MatchString(panelConfig) {
+		t.Errorf("ui/src/panel-config.ts does not declare PANEL_AGENT_STACK_MIN_RUNS as the manifest's four values")
 	}
 }

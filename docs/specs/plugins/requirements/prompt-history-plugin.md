@@ -184,13 +184,13 @@ host's standard plugin settings surface.
 #### Acceptance criteria
 
 - **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-004.1:** The manifest shall declare a
-  `config_schema` with exactly five properties — the numbering, send-time and
-  duration booleans plus the send-time format and agent-prompt style selectors
-  (AC-…-004.6, AC-…-004.7) — each defaulting to the panel's original
-  appearance, and shall mark both selectors required so the settings form
-  cannot present an unset state for them. The host shall render them at
-  Settings > Plugins > Prompt History, and the settings page (not the plugin)
-  shall persist them.
+  `config_schema` with exactly six properties — the numbering, send-time and
+  duration booleans plus the send-time format, agent-prompt style, and agent
+  stack minimum selectors (AC-…-004.6, AC-…-004.7, AC-…-004.8) — each
+  defaulting to the panel's original appearance, and shall mark all three
+  selectors required so the settings form cannot present an unset state for
+  them. The host shall render them at Settings > Plugins > Prompt History, and
+  the settings page (not the plugin) shall persist them.
 - **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-004.2:** The panel shall read the stored
   config once per mount from `GET /api/plugins/{id}/config` through the Host's
   scoped fetch and apply each stored boolean: a disabled duration shall render
@@ -224,20 +224,38 @@ host's standard plugin settings surface.
   highlight still winning for a prompt that is both agent-sent and favorited;
   `hide` shall render no agent-sent row at all, while leaving the remaining
   prompts' server-assigned ordinals and the panel's pagination behavior
-  unchanged. `collapse` shall fold each run of two or more consecutive
-  agent-sent rows into one stacked card — the run's newest prompt on a soft
-  grey front bubble with two offset outlines behind it, drawn from the same
-  `color-mix` colour model and readable in both themes — whose meta column
-  reports that front row's own send time and duration. The card shall be a
-  focusable `button` carrying `aria-expanded`, a catalog label, and a visible
-  count while expanded; it shall expand on hover, on focus, and on a press, and
-  fold back when the pointer or the focus leaves the stack, and the expanded
-  run shall render the ordinary rows with their ordinals, agent glyph,
-  long-text expand control, transcript navigation, and favorite highlight. A
-  run of exactly one agent-sent row shall render as the plain grey row with no
-  card chrome, and folding shall leave the remaining prompts' server-assigned
-  ordinals and the panel's pagination behavior unchanged. An absent or unknown
-  value shall read as `normal`.
+  unchanged. `collapse` shall fold each run of consecutive agent-sent rows that
+  is at least as long as the configured minimum (AC-…-004.8) into one stacked
+  card — the run's newest prompt on a soft grey front bubble, with two more
+  cards behind it of which only the strips along its right and bottom edges are
+  visible (the front bubble shall be opaque, so no outline shows through it),
+  drawn from the same `color-mix` colour model and readable in both themes. A
+  small badge on the card's top-right corner shall show how many prompts it
+  folds, and the card's meta column shall report the front row's own send time
+  and duration. The card shall be a focusable `button` carrying
+  `aria-expanded` and a catalog label; it shall expand on hover, on focus, and
+  on a press, and fold back when the pointer or the focus leaves the stack. The
+  expanded run shall render a slim count header — with no send time or
+  duration of its own and no more height than its label — above the ordinary
+  rows, which keep their ordinals, agent glyph, long-text expand control,
+  transcript navigation, and favorite highlight. When a stack folds after the
+  user scrolled down past its top, the panel shall scroll back so the stack sits
+  where it did when it expanded, leaving the next non-agent prompt directly
+  below the folded card, shall leave a scroll upwards alone, and shall not
+  re-expand the card on hover until the pointer moves. Agent rows outside a
+  stack shall render as plain grey rows with no card chrome, and folding shall
+  leave the remaining prompts' server-assigned ordinals and the panel's
+  pagination behavior unchanged. An absent or unknown value shall read as
+  `normal`.
+- **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-004.8:** The manifest shall declare a
+  required integer selector `display_6_agent_stack_min` whose values are
+  exactly 2, 3, 4, and 5, defaulting to 2: the smallest run of consecutive
+  agent-sent prompts that `collapse` folds into a stack, so a shorter run stays
+  as separate rows. The setting is meaningful only for `collapse`; the host's
+  settings form renders every declared property and has no conditional
+  visibility, so the field shall always be listed and its description shall say
+  when it applies. The panel shall apply only an exact stored member; an
+  absent, out-of-range, fractional, or non-numeric value shall read as 2.
 
 ## Out of scope
 

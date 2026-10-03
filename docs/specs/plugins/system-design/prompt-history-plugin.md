@@ -63,10 +63,16 @@ Manifest fields, per the [manifest reference](../../../public/plugins-manifest.m
 - `capabilities: { api_read: ["messages"] }` and only that capability.
 - `ui: { bundle: "/ui/bundle.js", styles: ["/ui/plugin.css"] }`. No
   `ui.pages`, `ui.keybindings`, webhooks, actions, or provider declarations.
-- `config_schema` — the five display settings of REQ-004 (numbering, send time
-  and duration booleans plus the time-format and agent-prompt-style selectors;
-  each defaults to the reference's row, and both selectors are `required`,
-  which is what removes the host form's "Not set" choice for them). The keys carry an explicit
+- `config_schema` — the six display settings of REQ-004 (numbering, send time
+  and duration booleans plus the time-format, agent-prompt-style, and agent
+  stack-minimum selectors; each defaults to the reference's row, and all three
+  selectors are `required`, which is what removes the host form's "Not set"
+  choice for them). `display_6_agent_stack_min` only matters while the agent
+  style is `collapse`, but it is always listed: the host builds the form from
+  each property's name, title, description, type, enum, default, and `required`
+  alone — verified against both the repository's `parseConfigSchema` and the
+  shipped runtime — so no field can be revealed by another field's value, and
+  its description says when it applies. The keys carry an explicit
   `display_<n>_` render-order prefix because the host renders
   `Object.keys(properties)` from the JSON it is handed, and the backend
   marshals the schema from a Go map — sorted — so the manifest's declaration
@@ -189,8 +195,9 @@ Module layout:
   catalog label (`Expand 3 agent prompts` / `Collapse 3 agent prompts`) and
   toggles on Enter/Space; it expands on hover, on focus, and on a press, and
   folds when the pointer or the focus leaves the stack. The toggle node stays
-  mounted across the swap (the deck while folded, a visible count chip while
-  expanded) so expanding never drops the focus that expanded it, and focus
+  mounted across the swap (the deck while folded, a slim count header while
+  expanded — block-level and without a meta column, so it costs no more height
+  than its label) so expanding never drops the focus that expanded it, and focus
   moving onto a control inside the expanded run is not a leave. A pointer press
   records the state it started from, so the click a tap dispatches after the
   focus it causes resolves to the tap's intent instead of undoing the expansion
@@ -198,13 +205,33 @@ Module layout:
   semantics. The folded front bubble's mention text is rendered
   non-interactively on purpose (the whole card is one button, and a chip or
   link inside it would nest an interactive control in a button); the expanded
-  rows render the same text with its controls live.
+  rows render the same text with its controls live. The folded card counts its
+  prompts in a badge on its top-right corner (decorative: the button's label
+  already carries the count).
+
+  Viewport hand-back: an expanded run can be taller than the panel. The stack
+  records, in a layout effect, where its top edge sits relative to the scroller
+  when it expands; when it folds again it measures the same edge and, if the
+  user scrolled down past it (the edge is now above where it was), scrolls the
+  difference back, so the folded card and the next non-agent prompt sit exactly
+  where they did before the expansion. This is the situation the pointer
+  produces itself: wheeling down through the run leaves the pointer over the
+  next prompt, which folds the run, and without the hand-back the shortened
+  list would leave the view stranded past prompts the user never saw. A scroll
+  *up* leaves the edge below its recorded position and is left alone. The
+  hand-back puts the folded card back under a stationary pointer, and the
+  browser reports that as the pointer entering it — measured in Chromium, the
+  run then unfolds again at once and the next wheel step scrolls through it a
+  second time — so a hand-back holds hover-expansion until the first real
+  `mousemove` over the card (focus and press are not held). jsdom has no layout,
+  so the suite pins the arithmetic with mocked geometry and the end-to-end
+  behaviour was checked with real wheel input in Chromium.
 - `ui/src/panel-config.ts` — the operator display settings (REQ-004). The pure
   `readPanelDisplaySettings` maps the `{ config: {...} }` envelope from
   `GET /api/plugins/{id}/config` to the three booleans, the `relative`/`absolute`
-  date format, and the agent-prompt style (absent, mistyped, or unreadable
-  values keep the default; both enums are total — only an exact member selects
-  a non-default), and
+  date format, the agent-prompt style, and the stack minimum (absent, mistyped,
+  or unreadable values keep the default; every enum is total — only an exact
+  member selects a non-default, so `1`, `6`, `2.5` and `"3"` all read as 2), and
   `usePanelDisplaySettings` performs one `host.api.fetch("/config")` per mount
   with `cache: "no-store"` and aborts it on unmount. The panel gates the `#N`
   ordinal, the send time, and the duration on those booleans, renders no
@@ -213,9 +240,10 @@ Module layout:
   send-time text between the compact relative ladder and the absolute
   locale-formatted date (with the other form as the hover title), and applies
   the agent-prompt style — adding the `ph-plugin-agent` bubble class for
-  `soft grey` and for the lone agent rows `collapse` does not fold, folding
-  each run of consecutive agent-sent rows into one card for `collapse` (see
-  `groupPromptHistoryRows`), or filtering agent-sent rows out of the rendered
+  `soft grey` and for every agent row `collapse` does not fold, folding
+  each run of at least `agentStackMinRun` consecutive agent-sent rows into one
+  card for `collapse` (see `groupPromptHistoryRows`), or filtering agent-sent
+  rows out of the rendered
   list for `hide` while paging keeps keying off every derived row (a hidden `#1`
   must not send the sentinel hunting for a list it can never complete). A
   failed or non-2xx read keeps every affordance and surfaces no error; config is
@@ -268,14 +296,25 @@ Module layout:
   stylesheet's colour model (the default bubble and the favorite highlight),
   so the agent variant adds no new browser requirement. The `collapse` deck
   keeps that model: `.ph-plugin-stack-sheet` is two absolutely positioned
-  outlines under the front bubble — the same `color-mix` over
+  cards under the front bubble — the same `color-mix` over
   `var(--muted-foreground)` one step lighter for the fill and a touch stronger
   for the 1px border, offset 4 px and 8 px down-right inside a deck box that
-  reserves that overhang — so the deck reads as stacked cards in both themes
+  reserves that overhang. Every card, front bubble included, is laid over an
+  opaque `var(--card)` base: translucent cards let the ones behind show
+  through, which painted the outlines on top of the front bubble instead of
+  behind it. Opaque, only the strips that stick out past the front bubble (its
+  right and bottom edges) remain, ordered nearer-in-front (the 4 px card over
+  the 8 px one, the front bubble over both, via `z-index` inside a deck that is
+  its own stacking context), so the deck reads as stacked cards in both themes
   instead of a second, darker bubble, and the front bubble's own radius stays
-  the host's `--radius` token.
+  the host's `--radius` token. The two cards are targeted by `nth-of-type`,
+  because `:first-of-type`/`:last-of-type` left the second one un-offset (the
+  reasoning is recorded in `ui/plugin.css`); the count badge floats on the deck's top-right corner with a
+  ring in the card colour, and the expanded header's label is block-level so
+  it adds no line-box strut (an inline label sat in a 24 px box for a 16 px
+  chip in Chromium).
 
-  ![The folded agent stack rendered from the packaged bundle and stylesheet on the host's dark theme tokens: the grey front bubble over two offset grey outlines](docs/assets/prompt-history-agent-stack-folded-dark.png)
+  ![The folded agent stack rendered from the packaged bundle and stylesheet on the host's dark theme tokens: the grey front bubble in front, two cards showing only along its right and bottom edges, and the count badge on its corner](docs/assets/prompt-history-agent-stack-folded-dark.png)
 - `ui/src/derive.ts` — pure entry derivation from the Host DTOs: `#N`
   ordinal from `promptIndex`, agent-sent flag from `senderTaskId`, and
   duration bounded by the earlier of turn completion and the
@@ -292,13 +331,14 @@ Module layout:
   (`h m s` unit labels from the translation catalog) matching
   `apps/web/lib/prompt-history.ts` `formatPromptDuration`.
   `groupPromptHistoryRows` is the pure `collapse`-mode seam over the derived
-  list: it folds each run of consecutive agent-sent rows into one `stack`
-  group (`front` is the run's newest row — the one the card shows and whose
-  time and duration its meta column reports — plus the older `rest`), and
-  leaves every other row as its own `row` group, so a run of one keeps the
-  plain row. Grouping runs after derivation, on the visible rows, and never
-  renumbers: ordinals stay the server's `promptIndex` values and pagination
-  keeps keying off every derived row. The vitest suite
+  list: it folds each run of at least `minRun` consecutive agent-sent rows
+  (the operator's `display_6_agent_stack_min`, 2 to 5, clamped to at least 2)
+  into one `stack` group (`front` is the run's newest row — the one the card
+  shows and whose time and duration its meta column reports — plus the older
+  `rest`), and leaves every other row, including every row of a shorter run, as
+  its own `row` group. Grouping runs after derivation, on the visible rows, and
+  never renumbers: ordinals stay the server's `promptIndex` values and
+  pagination keeps keying off every derived row. The vitest suite
   includes a case with two identical `createdAt` values whose ids are
   seeded so ascending-id order contradicts the facade page order, to pin
   that derive preserves page order rather than sorting by timestamp, and a
@@ -594,14 +634,22 @@ runs against a disposable development instance:
 - Collapse mode (`display_5_agent_style: collapse`): the rendered panel suite
   covers the fold through observable state — a run of two and a run of three
   each render one card and no plain rows, two runs separated by a user prompt
-  render two cards with that prompt's row in place, a lone agent prompt renders
-  no card chrome, hover/focus/press expand the card and leaving folds it back,
-  focus moving onto a control inside an expanded run does not fold it, the
-  front row's own send time and duration are what the card's meta column
-  shows, `hide`/`soft grey`/`normal` keep their previous rendering, and a folded
-  run whose oldest member is `#1` still stops the sentinel — asserting
-  `aria-expanded`, the visible row/stack test ids, and the rendered text rather
-  than class names alone.
+  render two cards with that prompt's row in place, runs shorter than
+  `display_6_agent_stack_min` stay separate grey rows with their ordinals
+  untouched, a lone agent prompt renders no card chrome, the corner badge
+  counts the folded prompts, hover/focus/press expand the card and leaving
+  folds it back, the expanded header carries no meta column, focus moving onto a
+  control inside an expanded run does not fold it, the viewport is handed back
+  after a scroll past the stack but not after a scroll up and the folded card
+  does not re-expand until the pointer moves, the front row's own send time and
+  duration are what the card's meta column shows, `hide`/`soft grey`/`normal`
+  keep their previous rendering, and a folded run whose oldest member is `#1`
+  still stops the sentinel — asserting `aria-expanded`, the visible row/stack
+  test ids, and the rendered text rather than class names alone. What jsdom
+  cannot see — the stacking order and offsets, the pixel result in light and
+  dark, the slim header's height, and the wheel-driven hand-back and its hover
+  hold — was measured in Chromium against the packaged bundle and stylesheet
+  (real hover and wheel input through CDP, pixel sampling of the deck).
 - Parity: the throwaway desktop and mobile Playwright runs from the parity
   proof section, plus the harness build step, which packages the
   plugin-fixture, and the existing core prompt-history E2E specs to

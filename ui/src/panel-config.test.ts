@@ -10,6 +10,7 @@ import {
   DEFAULT_PANEL_DISPLAY_SETTINGS,
   PANEL_AGENT_PROMPT_STYLES,
   PANEL_CONFIG_KEYS,
+  PANEL_AGENT_STACK_MIN_RUNS,
   PANEL_DATE_FORMATS,
   readPanelDisplaySettings,
 } from "./panel-config";
@@ -60,6 +61,15 @@ describe("readPanelDisplaySettings", () => {
     expect(readPanelDisplaySettings({ config: { display_5_agent_style: "normal" } })).toEqual(
       DEFAULT_PANEL_DISPLAY_SETTINGS,
     );
+    for (const minRun of [3, 4, 5]) {
+      expect(readPanelDisplaySettings({ config: { display_6_agent_stack_min: minRun } })).toEqual({
+        ...DEFAULT_PANEL_DISPLAY_SETTINGS,
+        agentStackMinRun: minRun,
+      });
+    }
+    expect(readPanelDisplaySettings({ config: { display_6_agent_stack_min: 2 } })).toEqual(
+      DEFAULT_PANEL_DISPLAY_SETTINGS,
+    );
     expect(readPanelDisplaySettings({ config: { display_3_time_format: "absolute" } })).toEqual({
       ...DEFAULT_PANEL_DISPLAY_SETTINGS,
       dateFormat: "absolute",
@@ -73,7 +83,8 @@ describe("readPanelDisplaySettings", () => {
           display_4_show_duration: false,
           display_2_show_time: false,
           display_1_show_numbers: false,
-          display_5_agent_style: "hide",
+          display_5_agent_style: "collapse",
+          display_6_agent_stack_min: 4,
           display_3_time_format: "absolute",
         },
       }),
@@ -82,7 +93,8 @@ describe("readPanelDisplaySettings", () => {
       showTime: false,
       showNumbers: false,
       dateFormat: "absolute",
-      agentPromptStyle: "hide",
+      agentPromptStyle: "collapse",
+      agentStackMinRun: 4,
     });
   });
 
@@ -109,6 +121,13 @@ describe("readPanelDisplaySettings", () => {
         DEFAULT_PANEL_DISPLAY_SETTINGS,
       );
     }
+    // Only the exact members 2 to 5 apply: out-of-range, fractional, and
+    // stringified numbers all keep the default of 2.
+    for (const value of [0, 1, 6, 10, 2.5, -3, "3", "", null, true, [], {}]) {
+      expect(readPanelDisplaySettings({ config: { display_6_agent_stack_min: value } })).toEqual(
+        DEFAULT_PANEL_DISPLAY_SETTINGS,
+      );
+    }
   });
 
   it("keeps the key names and enums the manifest declares", () => {
@@ -120,8 +139,10 @@ describe("readPanelDisplaySettings", () => {
       dateFormat: "display_3_time_format",
       showDuration: "display_4_show_duration",
       agentStyle: "display_5_agent_style",
+      agentStackMin: "display_6_agent_stack_min",
     });
     expect(PANEL_DATE_FORMATS).toEqual(["relative", "absolute"]);
     expect(PANEL_AGENT_PROMPT_STYLES).toEqual(["normal", "soft grey", "hide", "collapse"]);
+    expect(PANEL_AGENT_STACK_MIN_RUNS).toEqual([2, 3, 4, 5]);
   });
 });

@@ -54,18 +54,26 @@ capabilities:
 # reads the stored config from GET /api/plugins/<id>/config on mount and falls
 # back to these defaults when the read fails; a saved change therefore applies
 # the next time the panel mounts (session/task switch or reload). The key names
-# and the date-format values are mirrored by PANEL_CONFIG_KEYS /
-# PANEL_DATE_FORMATS in ui/src/panel-config.ts, and `go test ./server/...`
-# fails if the two sides drift.
+# and the enum values are mirrored by PANEL_CONFIG_KEYS / PANEL_DATE_FORMATS /
+# PANEL_AGENT_PROMPT_STYLES / PANEL_AGENT_STACK_MIN_RUNS in
+# ui/src/panel-config.ts, and `go test ./server/...` fails if the two sides
+# drift.
 #
-# `required` lists the two selectors — `display_3_time_format` and
-# `display_5_agent_style`: an optional enum renders a "Not set" choice on the
-# host's form, and neither setting has a meaningful unset state (the panel has
-# exactly two time formats, and every prompt is shown in one of the four agent
-# styles), so both are required — each select then always shows the stored value
-# or its default and always submits one. The panel still reads an absent or
-# unknown value as the default (`relative` / `normal`), which covers a
+# `required` lists the three selectors — `display_3_time_format`,
+# `display_5_agent_style` and `display_6_agent_stack_min`: an optional enum
+# renders a "Not set" choice on the host's form, and no selector has a
+# meaningful unset state (the panel has exactly two time formats, every prompt
+# is shown in one of the four agent styles, and a stack always has a minimum
+# run), so all three are required — each select then always shows the stored
+# value or its default and always submits one. The panel still reads an absent
+# or unknown value as the default (`relative` / `normal` / 2), which covers a
 # hand-edited config and any record written before a field was required.
+#
+# `display_6_agent_stack_min` only matters while the agent style is `collapse`,
+# but it is always rendered: the host builds this form from `properties` alone
+# (name, title, description, type, enum, default, required) and has no
+# conditional-visibility keyword, so a field cannot be revealed by another
+# field's value. Its description says when it applies.
 #
 # The `N_` segment in each key is the field's position in the host's settings
 # form. The form renders `Object.keys(properties)` in order, and the host hands
@@ -103,7 +111,13 @@ config_schema:
       default: "normal"
       title: "Agent prompt style"
       description: "How prompts sent by another task's agent are shown: normal (the same bubble as other prompts), soft grey, hidden entirely, or collapse (each run of consecutive agent-sent prompts folds into one stacked card that unfolds on hover or focus)."
-  required: ["display_3_time_format", "display_5_agent_style"]
+    display_6_agent_stack_min:
+      type: integer
+      enum: [2, 3, 4, 5]
+      default: 2
+      title: "Minimum agent prompts to stack"
+      description: "Only used when Agent prompt style is collapse: the smallest run of consecutive agent-sent prompts that folds into a stack, from 2 to 5. A shorter run stays as separate grey rows."
+  required: ["display_3_time_format", "display_5_agent_style", "display_6_agent_stack_min"]
 
 # ui.bundle points at the ES module frontend half, built by ui/build.mjs into
 # ui/bundle.js and served by kandev from the extracted package at

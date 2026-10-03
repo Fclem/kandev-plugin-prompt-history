@@ -28,6 +28,9 @@ export type PanelDisplaySettings = {
   dateFormat: PanelDateFormat;
   /** How prompts sent by another task's agent are shown. */
   agentPromptStyle: PanelAgentPromptStyle;
+  /** With the `collapse` style, the smallest run of consecutive agent-sent
+   * prompts that folds into a stack; shorter runs stay separate rows. */
+  agentStackMinRun: PanelAgentStackMinRun;
 };
 
 /** `relative` is the compact ladder ("5m", the parity reference's default);
@@ -49,6 +52,12 @@ export type PanelAgentPromptStyle = "normal" | "soft grey" | "hide" | "collapse"
 /** The `display_5_agent_style` enum the manifest declares, in form order. */
 export const PANEL_AGENT_PROMPT_STYLES = ["normal", "soft grey", "hide", "collapse"] as const;
 
+/** The `display_6_agent_stack_min` enum the manifest declares: the smallest run
+ * of consecutive agent-sent prompts the `collapse` style folds into a stack. */
+export const PANEL_AGENT_STACK_MIN_RUNS = [2, 3, 4, 5] as const;
+
+export type PanelAgentStackMinRun = (typeof PANEL_AGENT_STACK_MIN_RUNS)[number];
+
 /**
  * Config keys declared by `config_schema.properties` in manifest.yaml. The
  * settings form and the panel must agree on these names, so they live here and
@@ -66,6 +75,7 @@ export const PANEL_CONFIG_KEYS = {
   dateFormat: "display_3_time_format",
   showDuration: "display_4_show_duration",
   agentStyle: "display_5_agent_style",
+  agentStackMin: "display_6_agent_stack_min",
 } as const;
 
 /** The `display_3_time_format` enum the manifest declares. */
@@ -80,6 +90,7 @@ export const DEFAULT_PANEL_DISPLAY_SETTINGS: PanelDisplaySettings = {
   showNumbers: true,
   dateFormat: "relative",
   agentPromptStyle: "normal",
+  agentStackMinRun: 2,
 };
 
 /** `host.api.fetch` resolves this against `/api/plugins/<id>`. */
@@ -96,7 +107,8 @@ function samePanelDisplaySettings(
     left.showTime === right.showTime &&
     left.showNumbers === right.showNumbers &&
     left.dateFormat === right.dateFormat &&
-    left.agentPromptStyle === right.agentPromptStyle
+    left.agentPromptStyle === right.agentPromptStyle &&
+    left.agentStackMinRun === right.agentStackMinRun
   );
 }
 
@@ -105,7 +117,7 @@ function samePanelDisplaySettings(
  * mistyped keeps the default: the backend validates declared fields, so a
  * bad value here means the config came from a hand-edited file or a host that
  * answered with an unexpected shape, and rendering the wrong rows is the worse
- * failure. Both enums are total — only the exact stored member is applied, and
+ * failure. Every enum is total — only the exact stored member is applied, and
  * everything else (including a missing key) stays on the default.
  */
 export function readPanelDisplaySettings(payload: unknown): PanelDisplaySettings {
@@ -113,7 +125,8 @@ export function readPanelDisplaySettings(payload: unknown): PanelDisplaySettings
   if (!payload || typeof payload !== "object" || !("config" in payload)) return settings;
   const { config } = payload;
   if (!config || typeof config !== "object") return settings;
-  const { showDuration, showTime, showNumbers, dateFormat, agentStyle } = PANEL_CONFIG_KEYS;
+  const { showDuration, showTime, showNumbers, dateFormat, agentStyle, agentStackMin } =
+    PANEL_CONFIG_KEYS;
   if (showDuration in config && typeof config[showDuration] === "boolean") {
     settings.showDuration = config[showDuration];
   }
@@ -136,6 +149,13 @@ export function readPanelDisplaySettings(payload: unknown): PanelDisplaySettings
           : stored === "collapse"
             ? "collapse"
             : "normal";
+  }
+  if (agentStackMin in config) {
+    // Exact members only: a hand-edited 1, 6, 2.5 or "3" keeps the default.
+    const stored = config[agentStackMin];
+    settings.agentStackMinRun =
+      PANEL_AGENT_STACK_MIN_RUNS.find((member) => member === stored) ??
+      DEFAULT_PANEL_DISPLAY_SETTINGS.agentStackMinRun;
   }
   return settings;
 }

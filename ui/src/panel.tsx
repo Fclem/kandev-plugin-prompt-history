@@ -336,21 +336,25 @@ type AgentPromptStackProps = RowEnvironment & {
   group: Extract<PromptHistoryRowGroup, { kind: "stack" }>;
   expandedRowId: string | null;
   onToggle: (messageId: string) => void;
+  /** The panel's scroller, so folding can hand the viewport back (see below). */
+  scrollRef: React.RefObject<HTMLDivElement | null>;
 };
 
 /**
  * A run of consecutive agent-sent prompts under `display_5_agent_style:
  * collapse`, folded into one card. The card's front bubble is the run's newest
  * prompt, with two offset outlines behind it reading as the deck underneath;
- * its meta column reports that same front row (see `PromptRowMeta`).
+ * its meta column reports that same front row (see `PromptRowMeta`) and a small
+ * floating badge on its top-right corner counts the prompts folded into it.
  *
  * The card is a real `<button>` carrying `aria-expanded` and a catalog label,
  * so the stack is reachable and operable from the keyboard — Tab focuses it
  * (which expands it) and Enter/Space toggles it — where hover alone would
  * leave the fold unreachable. It expands on hover, on focus, and on a press;
  * it folds back when the pointer leaves the stack or focus leaves it. The
- * toggle node itself stays mounted in both states (a small count chip while
- * expanded), so expanding never drops the focus that expanded it.
+ * toggle node itself stays mounted in both states (a compact count header while
+ * expanded, with no meta column of its own), so expanding never drops the focus
+ * that expanded it.
  *
  * Expanded, the run renders its ordinary rows — ordinal, robot glyph, the
  * long-text expand control, transcript navigation, and the favourite highlight
@@ -358,6 +362,17 @@ type AgentPromptStackProps = RowEnvironment & {
  * non-interactive: the whole card is one button, and a chip or link inside it
  * would nest an interactive control in a button. The expanded rows render the
  * same text with its controls live.
+ *
+ * Viewport hand-back: an expanded run can be taller than the view. Folding it
+ * after the user scrolled down through it (typically because the pointer ended
+ * up over the next prompt) would leave the view stranded far past where the
+ * stack sits, with prompts skipped. So the stack records where its top sat in
+ * the scroller when it expanded and, on folding, scrolls back until it sits
+ * there again, which puts the next non-agent prompt right below the folded
+ * card exactly as before the expansion. Scrolling *up* past the stack is left
+ * alone. The restore puts the folded card back under a stationary pointer, so
+ * hover-expansion is held off until the pointer actually moves, or it would
+ * unfold again at once.
  */
 function AgentPromptStack({
   group,
@@ -371,8 +386,30 @@ function AgentPromptStack({
   t,
   formatRelativeTime,
   PromptMentionText,
+  scrollRef,
 }: AgentPromptStackProps) {
   const [expanded, setExpanded] = useState(false);
+  const stackRef = useRef<HTMLDivElement>(null);
+  // The stack's top edge relative to the scroller's, captured while expanded.
+  const anchorTopRef = useRef<number | null>(null);
+  const hoverHeldRef = useRef(false);
+  useLayoutEffect(() => {
+    const stack = stackRef.current;
+    const scroller = scrollRef.current;
+    if (!stack || !scroller) return;
+    const top = stack.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+    if (expanded) {
+      anchorTopRef.current = top;
+      return;
+    }
+    const anchor = anchorTopRef.current;
+    anchorTopRef.current = null;
+    // Folded at or below where it expanded (the user did not scroll down past
+    // it): nothing to hand back.
+    if (anchor === null || anchor - top < 1) return;
+    scroller.scrollTop -= anchor - top;
+    hoverHeldRef.current = true;
+  }, [expanded, scrollRef]);
   // The state a press asked for, captured on `pointerdown`. A pointer press
   // focuses the button first, and that focus expands the stack, so resolving
   // the click against the state at press time is what keeps a touch tap
@@ -383,10 +420,22 @@ function AgentPromptStack({
   const count = rest.length + 1;
   return (
     <div
+      ref={stackRef}
       className="ph-plugin-stack"
       data-testid={`ph-plugin-stack-${startIndex}`}
-      onMouseEnter={() => setExpanded(true)}
-      onMouseLeave={() => setExpanded(false)}
+      onMouseEnter={() => {
+        if (!hoverHeldRef.current) setExpanded(true);
+      }}
+      onMouseMove={() => {
+        // The first real movement releases the hold after a hand-back.
+        if (!hoverHeldRef.current) return;
+        hoverHeldRef.current = false;
+        setExpanded(true);
+      }}
+      onMouseLeave={() => {
+        hoverHeldRef.current = false;
+        setExpanded(false);
+      }}
       onFocus={() => setExpanded(true)}
       onBlur={(event) => {
         // Focus moving between the stack's own controls stays inside the
@@ -395,7 +444,7 @@ function AgentPromptStack({
         setExpanded(false);
       }}
     >
-      <div className="ph-plugin-row">
+      <div className={`ph-plugin-row${expanded ? " ph-plugin-stack-head" : ""}`}>
         <div className="ph-plugin-row-main">
           <button
             type="button"
@@ -434,18 +483,23 @@ function AgentPromptStack({
                     <PromptMentionText text={front.content} interactive={false} />
                   </span>
                 </span>
+                <span className="ph-plugin-stack-count" aria-hidden="true">
+                  {count}
+                </span>
               </span>
             )}
           </button>
         </div>
-        <PromptRowMeta
-          row={front}
-          index={startIndex}
-          display={display}
-          locale={locale}
-          t={t}
-          formatRelativeTime={formatRelativeTime}
-        />
+        {!expanded && (
+          <PromptRowMeta
+            row={front}
+            index={startIndex}
+            display={display}
+            locale={locale}
+            t={t}
+            formatRelativeTime={formatRelativeTime}
+          />
+        )}
       </div>
       {expanded && (
         <div className="ph-plugin-stack-rows">
@@ -902,12 +956,16 @@ export function PromptHistoryPanel(props: PluginTaskPanelProps) {
       display.agentPromptStyle === "hide" ? rows.filter((row) => !row.isAgentPrompt) : rows,
     [rows, display.agentPromptStyle],
   );
-  // `collapse` folds each run of consecutive agent-sent rows into one stack.
-  // The other three styles render one plain row per visible row, so the groups
-  // are only built where they are used and their DOM stays exactly as it was.
+  // `collapse` folds each run of at least `agentStackMinRun` consecutive
+  // agent-sent rows into one stack. The other three styles render one plain row
+  // per visible row, so the groups are only built where they are used and
+  // their DOM stays exactly as it was.
   const rowGroups = useMemo(
-    () => (display.agentPromptStyle === "collapse" ? groupPromptHistoryRows(visibleRows) : null),
-    [visibleRows, display.agentPromptStyle],
+    () =>
+      display.agentPromptStyle === "collapse"
+        ? groupPromptHistoryRows(visibleRows, display.agentStackMinRun)
+        : null,
+    [visibleRows, display.agentPromptStyle, display.agentStackMinRun],
   );
   const state = determinePanelState(messagesState, sessionKind);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -1121,6 +1179,7 @@ export function PromptHistoryPanel(props: PluginTaskPanelProps) {
                     group={group}
                     expandedRowId={expanded}
                     onToggle={onToggleRow}
+                    scrollRef={scrollRef}
                   />
                 ) : (
                   <PromptHistoryRow

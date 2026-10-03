@@ -34,7 +34,7 @@ first, in a scrollable list you can read at a glance and jump back into.
 
 ## Settings
 
-The manifest's `config_schema` gives the panel five operator settings, rendered by
+The manifest's `config_schema` gives the panel six operator settings, rendered by
 the host at **Settings > Plugins > Prompt History** and stored by the host. Every
 default reproduces the panel's original row, so an instance that never saved
 settings looks exactly as it always did.
@@ -46,6 +46,7 @@ settings looks exactly as it always did.
 | Send time format | `relative` / `absolute` | `relative` |
 | Show prompt duration | switch | on |
 | Agent prompt style | `normal` / `soft grey` / `hide` / `collapse` | `normal` |
+| Minimum agent prompts to stack | `2` / `3` / `4` / `5` | `2` |
 
 - **The row shows one time format and hovers the other.** With the compact
   relative ladder (`5m`) visible, the hover is the absolute, locale-formatted date
@@ -60,29 +61,46 @@ settings looks exactly as it always did.
   pagination walks history. `soft grey` repaints those rows instead; the favorite
   highlight still wins on a prompt that is both agent-sent and favorited.
 - **`collapse` folds each run of consecutive agent-sent prompts into one stacked
-  card** — the newest prompt's bubble with two offset outlines behind it, reading
-  as a small deck. Hovering the card unfolds the run; moving the pointer off it
-  folds it back. The card is a real `button` with `aria-expanded` and a catalog
-  label, so it also unfolds on focus and toggles with Enter/Space. A run of one
-  keeps the plain grey row (there is nothing to fold), the card's clock and
-  hourglass are the front — newest — prompt's own values, and the unfolded rows
-  keep their ordinals, robot glyph, long-text expand control, transcript
-  navigation, and favorite highlight. Folding never renumbers prompts and never
-  changes pagination: paging still keys off every derived row, so a folded run
-  whose oldest member is `#1` still stops older-page loading.
+  card** — the newest prompt's bubble in front, with two more cards behind it
+  that only show along its right and bottom edges, reading as a small deck, and
+  a small badge on its top-right corner counting the prompts it folds. Hovering
+  the card unfolds the run under a slim `N agent prompts` header (no time or
+  duration of its own); moving the pointer off it folds it back. The card is a
+  real `button` with `aria-expanded` and a catalog label, so it also unfolds on
+  focus and toggles with Enter/Space. The card's clock and hourglass are the
+  front — newest — prompt's own values, and the unfolded rows keep their
+  ordinals, robot glyph, long-text expand control, transcript navigation, and
+  favorite highlight. Folding never renumbers prompts and never changes
+  pagination: paging still keys off every derived row, so a folded run whose
+  oldest member is `#1` still stops older-page loading.
 
-  ![The three agent prompts of a folded run as one stacked card, the newest prompt's grey bubble over two offset outlines](docs/assets/prompt-history-agent-stack-folded-light.png)
+  ![The three agent prompts of a folded run as one stacked card: the newest prompt's grey bubble in front, two cards behind it showing only along the right and bottom edges, and a count badge on the top-right corner](docs/assets/prompt-history-agent-stack-folded-light.png)
 
-  ![The same run unfolded on hover: a count chip above the three agent prompt rows, each with its ordinal, robot glyph, and meta column](docs/assets/prompt-history-agent-stack-expanded-light.png)
-- **Both selectors are required**, which is what removes the host form's "Not set"
-  choice, and the panel reads an absent or unknown value as the default.
+  ![The same run unfolded on hover: a slim count header above the three agent prompt rows, each with its ordinal, robot glyph, and meta column](docs/assets/prompt-history-agent-stack-expanded-light.png)
+- **A tall unfolded run hands the view back when it folds.** If you scroll down
+  through an unfolded run and the pointer ends up over the next prompt (or the
+  run folds for any other reason), the list scrolls back so the folded card and
+  the next non-agent prompt sit exactly where they did before you unfolded it,
+  rather than leaving you stranded further down the list. Scrolling *up* past
+  the run is left alone, and the folded card does not unfold again until the
+  pointer actually moves.
+- **`Minimum agent prompts to stack` sets how long a run must be to fold**, from
+  2 to 5 (default 2). A shorter run stays as separate grey rows, still marked as
+  agent prompts, with no card. It only matters while the style is `collapse`, but
+  the host's settings form has no way to hide a field behind another field's
+  value, so it is always listed — its description says when it applies.
+
+  ![The Settings > Plugins > Prompt History form: the Agent prompt style select followed by the required Minimum agent prompts to stack select and its description](docs/assets/prompt-history-settings-stack-min.png)
+- **All three selectors are required**, which is what removes the host form's
+  "Not set" choice, and the panel reads an absent or unknown value as the
+  default.
 
 The panel reads the stored config once per mount through the host's scoped
 `GET /api/plugins/<id>/config` (`ui/src/panel-config.ts`) and never writes it. A
 failed or unauthorized read keeps every affordance and surfaces no error, and a
 saved change applies the next time the panel mounts (a session or task switch, or
 a reload). The keys carry their form position (`display_1_show_numbers` …
-`display_5_agent_style`) because the host renders the schema's keys as they
+`display_6_agent_stack_min`) because the host renders the schema's keys as they
 arrive, sorted — the manifest's `properties` order is not preserved.
 
 ## Install

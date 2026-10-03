@@ -2626,6 +2626,11 @@ describe("PromptHistoryPanel agent prompt stacks", () => {
     expect(front?.textContent).toContain("#3");
     expect(front?.textContent).toContain("prompt 3");
     expect(stack.querySelectorAll(".ph-plugin-stack-sheet")).toHaveLength(2);
+    // The number of folded prompts floats on the card's corner; it is
+    // decorative, since the button's label already says it.
+    const badge = stack.querySelector(".ph-plugin-stack-count");
+    expect(badge?.textContent).toBe("3");
+    expect(badge?.getAttribute("aria-hidden")).toBe("true");
 
     // The card's meta column reports the front (newest) row's own values.
     expect(stack.querySelector("time")?.getAttribute("datetime")).toBe("2026-01-01T00:00:03Z");
@@ -2819,5 +2824,154 @@ describe("PromptHistoryPanel agent prompt stacks", () => {
     // never complete.
     expect(screen.getByTestId("ph-plugin-stack-0")).toBeTruthy();
     expect(screen.queryByTestId("ph-plugin-sentinel")).toBeNull();
+  });
+
+  it("expands to a slim header that carries no meta column", async () => {
+    renderPanel(makeMessages(agentRun(), { hasMore: false }), makeTurns([completedTurn]), {}, COLLAPSE);
+    await flushConfigRead();
+    const stack = screen.getByTestId("ph-plugin-stack-0");
+    // Folded, the card reports its front row's time and duration.
+    expect(stack.querySelector(".ph-plugin-row-meta")).toBeTruthy();
+
+    fireEvent.mouseOver(screen.getByTestId("ph-plugin-stack-toggle-0"));
+    const head = stack.querySelector(".ph-plugin-stack-head");
+    expect(head?.textContent).toBe("3 agent prompts");
+    // The header is a label, not a prompt: no send time or duration of its own,
+    // and the corner badge is gone with the deck.
+    expect(head?.querySelector(".ph-plugin-row-meta")).toBeNull();
+    expect(head?.querySelector("time")).toBeNull();
+    expect(stack.querySelector(".ph-plugin-stack-count")).toBeNull();
+    // The three rows below keep their own meta columns.
+    expect(stack.querySelectorAll(".ph-plugin-stack-rows .ph-plugin-row-meta")).toHaveLength(3);
+  });
+
+  it("stacks only runs of at least display_6_agent_stack_min prompts", async () => {
+    // Newest first: a run of two, a user prompt, then a run of four.
+    const mixed = () => [
+      agentPrompt("a7", 7, "2026-01-01T00:00:07Z"),
+      agentPrompt("a6", 6, "2026-01-01T00:00:06Z"),
+      userPrompt("u5", 5, "2026-01-01T00:00:05Z"),
+      agentPrompt("a4", 4, "2026-01-01T00:00:04Z"),
+      agentPrompt("a3", 3, "2026-01-01T00:00:03Z"),
+      agentPrompt("a2", 2, "2026-01-01T00:00:02Z"),
+      agentPrompt("a1", 1, "2026-01-01T00:00:01Z"),
+    ];
+
+    // Default (2): both runs fold.
+    renderPanel(makeMessages(mixed(), { hasMore: false }), makeTurns([]), {}, COLLAPSE);
+    await flushConfigRead();
+    expect(screen.getByTestId("ph-plugin-stack-0")).toBeTruthy();
+    expect(screen.getByTestId("ph-plugin-stack-3")).toBeTruthy();
+    expect(screen.getByTestId("ph-plugin-stack-3").textContent).toContain("4");
+
+    // 3: the run of two stays two separate grey rows; the run of four folds.
+    cleanup();
+    renderPanel(makeMessages(mixed(), { hasMore: false }), makeTurns([]), {}, {
+      config: { display_5_agent_style: "collapse", display_6_agent_stack_min: 3 },
+    });
+    await flushConfigRead();
+    expect(screen.queryByTestId("ph-plugin-stack-0")).toBeNull();
+    expect(screen.getByTestId("ph-plugin-stack-3")).toBeTruthy();
+    const shortRun = [0, 1].map((index) => screen.getByTestId(`ph-plugin-row-${index}`));
+    for (const row of shortRun) expect(row.querySelector(".ph-plugin-agent")).toBeTruthy();
+    // Ordinals are untouched by the threshold.
+    expect(shortRun.map((row) => row.querySelector(".ph-plugin-number")?.textContent)).toEqual([
+      "#7",
+      "#6",
+    ]);
+
+    // 5: even the run of four stays separate, so nothing folds at all.
+    cleanup();
+    renderPanel(makeMessages(mixed(), { hasMore: false }), makeTurns([]), {}, {
+      config: { display_5_agent_style: "collapse", display_6_agent_stack_min: 5 },
+    });
+    await flushConfigRead();
+    expect(document.querySelector(".ph-plugin-stack")).toBeNull();
+    expect(screen.getAllByTestId(/^ph-plugin-row-/)).toHaveLength(7);
+  });
+
+  /** Pin the stack's top edge and the scroller's scroll offset, which jsdom
+   * does not lay out: `top` is read by the stack's fold/unfold bookkeeping. */
+  function mockScrollGeometry(initialTop: number) {
+    const scroller = screen.getByTestId("ph-plugin-scroll");
+    const stack = screen.getByTestId("ph-plugin-stack-0");
+    const geometry = { stackTop: initialTop, scrollTop: 0 };
+    Object.defineProperty(scroller, "scrollTop", {
+      configurable: true,
+      get: () => geometry.scrollTop,
+      set: (value: number) => {
+        geometry.scrollTop = value;
+      },
+    });
+    Object.defineProperty(stack, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ top: geometry.stackTop }) as DOMRect,
+    });
+    return geometry;
+  }
+
+  it("hands the viewport back to where the stack was when it folds after a scroll past it", async () => {
+    renderPanel(makeMessages(agentRun(), { hasMore: false }), makeTurns([]), {}, COLLAPSE);
+    await flushConfigRead();
+    const toggle = screen.getByTestId("ph-plugin-stack-toggle-0");
+    const geometry = mockScrollGeometry(300);
+
+    fireEvent.mouseOver(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+
+    // The user wheels down through the tall run: the stack's top is now far
+    // above the viewport, and the pointer ends up over the next prompt.
+    geometry.scrollTop = 800;
+    geometry.stackTop = -500;
+    fireEvent.mouseOut(toggle);
+
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    // Back to where it was, so the folded card and the prompt after it are
+    // where they were before the expansion.
+    expect(geometry.scrollTop).toBe(0);
+  });
+
+  it("leaves the viewport alone when the user did not scroll past the stack", async () => {
+    renderPanel(makeMessages(agentRun(), { hasMore: false }), makeTurns([]), {}, COLLAPSE);
+    await flushConfigRead();
+    const toggle = screen.getByTestId("ph-plugin-stack-toggle-0");
+    const geometry = mockScrollGeometry(300);
+
+    // No scroll at all: nothing to hand back.
+    fireEvent.mouseOver(toggle);
+    fireEvent.mouseOut(toggle);
+    expect(geometry.scrollTop).toBe(0);
+
+    // Scrolling *up* past it (its top is now lower than where it expanded) is
+    // the user's own movement and is not undone.
+    fireEvent.mouseOver(toggle);
+    geometry.scrollTop = 0;
+    geometry.stackTop = 450;
+    fireEvent.mouseOut(toggle);
+    expect(geometry.scrollTop).toBe(0);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("does not unfold again under a stationary pointer after handing the viewport back", async () => {
+    renderPanel(makeMessages(agentRun(), { hasMore: false }), makeTurns([]), {}, COLLAPSE);
+    await flushConfigRead();
+    const toggle = screen.getByTestId("ph-plugin-stack-toggle-0");
+    const geometry = mockScrollGeometry(300);
+
+    fireEvent.mouseOver(toggle);
+    geometry.scrollTop = 800;
+    geometry.stackTop = -500;
+    fireEvent.mouseOut(toggle);
+    expect(geometry.scrollTop).toBe(0);
+
+    // The hand-back puts the folded card back under the pointer, and the
+    // browser reports that as the pointer entering it. Without a real move,
+    // that must not unfold the run again.
+    fireEvent.mouseOver(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+
+    // The first real movement over the card does.
+    fireEvent.mouseMove(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
   });
 });
