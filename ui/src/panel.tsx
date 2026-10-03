@@ -254,18 +254,24 @@ function PromptHistoryRow({
   }, [updateOverflow]);
 
   const showToggle = overflow || expanded;
+  const ordinal = display.showNumbers && row.promptNumber !== null ? `#${row.promptNumber}` : null;
 
   return (
     <div className="ph-plugin-row" data-testid={`ph-plugin-row-${index}`}>
       <div className="ph-plugin-row-main">
+        {ordinal !== null && display.numberStyle === "pill" && (
+          <span className="ph-plugin-pill ph-plugin-number-pill" aria-hidden="true">
+            {ordinal}
+          </span>
+        )}
         <div
           className={`ph-plugin-row-bubble markdown-body markdown-body-user${
-            // Both soft-grey modes paint the agent bubble grey: `soft grey`
-            // rests there and `collapse` marks every agent prompt the same way,
-            // whether it stands alone or folds into a stack with its
-            // neighbours. `hide` never reaches this row (the panel drops those
-            // rows) and `normal` keeps the reference's prompt colour.
-            row.isAgentPrompt && display.agentPromptStyle !== "normal" ? " ph-plugin-agent" : ""
+            // The agent colour is its own setting, independent of whether agent
+            // prompts are listed, hidden, or folded: a soft grey agent prompt
+            // is grey as a plain row and as a stack's front alike.
+            row.isAgentPrompt && display.agentPromptStyle === "soft grey"
+              ? " ph-plugin-agent"
+              : ""
           }${isFavorite ? " ph-plugin-favorite" : ""}`}
           data-message-id={row.messageId}
           onClick={(event) => {
@@ -273,9 +279,9 @@ function PromptHistoryRow({
             onNavigate(row.messageId);
           }}
         >
-          {display.showNumbers && row.promptNumber !== null && (
+          {ordinal !== null && display.numberStyle === "inline" && (
             <span className="ph-plugin-number" aria-hidden="true">
-              #{row.promptNumber}
+              {ordinal}
             </span>
           )}
           {row.isAgentPrompt && <PanelIcon className="ph-plugin-agent-icon" name="robot" />}
@@ -341,20 +347,22 @@ type AgentPromptStackProps = RowEnvironment & {
 };
 
 /**
- * A run of consecutive agent-sent prompts under `display_5_agent_style:
+ * A run of consecutive agent-sent prompts under `display_6_agent_prompt_display:
  * collapse`, folded into one card. The card's front bubble is the run's newest
  * prompt, with two offset outlines behind it reading as the deck underneath;
- * its meta column reports that same front row (see `PromptRowMeta`) and a small
- * floating badge on its top-right corner counts the prompts folded into it.
+ * its meta column reports that same front row (see `PromptRowMeta`), and a
+ * small pill on its top-right corner reads `+n` — the prompts folded in behind
+ * the front one. The deck takes the agent colour setting (grey or the
+ * reference's prompt colour); folding is a separate choice.
  *
  * The card is a real `<button>` carrying `aria-expanded` and a catalog label,
- * so the stack is reachable and operable from the keyboard — Tab focuses it
- * (which expands it) and Enter/Space toggles it — where hover alone would
- * leave the fold unreachable. It expands on hover, on focus, and on a press;
- * it folds back when the pointer leaves the stack or focus leaves it. The
- * toggle node itself stays mounted in both states (a compact count header while
- * expanded, with no meta column of its own), so expanding never drops the focus
- * that expanded it.
+ * so the stack is operable from the keyboard — Enter/Space toggles it — where
+ * hover alone would leave the fold unreachable. With `display_8_agent_stack_expand`
+ * on `hover` it also expands on hover, on focus, and on a press and folds back
+ * when the pointer or focus leaves the stack; on `click` it does none of that
+ * and only the button's activation unfolds or folds it. The toggle node itself
+ * stays mounted in both states (a compact count header while expanded, with no
+ * meta column of its own), so expanding never drops the focus that expanded it.
  *
  * Expanded, the run renders its ordinary rows — ordinal, robot glyph, the
  * long-text expand control, transcript navigation, and the favourite highlight
@@ -418,31 +426,44 @@ function AgentPromptStack({
   const pressTargetRef = useRef<boolean | null>(null);
   const { front, rest, startIndex } = group;
   const count = rest.length + 1;
+  const grey = display.agentPromptStyle === "soft grey";
+  const frontOrdinal =
+    display.showNumbers && front.promptNumber !== null ? `#${front.promptNumber}` : null;
+  // `hover` unfolds on hover, focus, and press and folds when the pointer or
+  // focus leaves; `click` wires none of that, so the card unfolds and folds
+  // only when its button is activated (a click, Enter, or Space) and stays as
+  // the user left it.
+  const hoverHandlers =
+    display.agentStackExpand === "hover"
+      ? {
+          onMouseEnter: () => {
+            if (!hoverHeldRef.current) setExpanded(true);
+          },
+          onMouseMove: () => {
+            // The first real movement releases the hold after a hand-back.
+            if (!hoverHeldRef.current) return;
+            hoverHeldRef.current = false;
+            setExpanded(true);
+          },
+          onMouseLeave: () => {
+            hoverHeldRef.current = false;
+            setExpanded(false);
+          },
+          onFocus: () => setExpanded(true),
+          onBlur: (event: React.FocusEvent<HTMLDivElement>) => {
+            // Focus moving between the stack's own controls stays inside the
+            // stack; only a focus target outside it folds the run back.
+            if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+            setExpanded(false);
+          },
+        }
+      : {};
   return (
     <div
       ref={stackRef}
       className="ph-plugin-stack"
       data-testid={`ph-plugin-stack-${startIndex}`}
-      onMouseEnter={() => {
-        if (!hoverHeldRef.current) setExpanded(true);
-      }}
-      onMouseMove={() => {
-        // The first real movement releases the hold after a hand-back.
-        if (!hoverHeldRef.current) return;
-        hoverHeldRef.current = false;
-        setExpanded(true);
-      }}
-      onMouseLeave={() => {
-        hoverHeldRef.current = false;
-        setExpanded(false);
-      }}
-      onFocus={() => setExpanded(true)}
-      onBlur={(event) => {
-        // Focus moving between the stack's own controls stays inside the
-        // stack; only a focus target outside it folds the run back.
-        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
-        setExpanded(false);
-      }}
+      {...hoverHandlers}
     >
       <div className={`ph-plugin-row${expanded ? " ph-plugin-stack-head" : ""}`}>
         <div className="ph-plugin-row-main">
@@ -469,13 +490,17 @@ function AgentPromptStack({
                 {t("agentPromptStackLabel", { values: { count } })}
               </span>
             ) : (
-              <span className="ph-plugin-stack-deck">
+              <span className={`ph-plugin-stack-deck${grey ? " ph-plugin-stack-grey" : ""}`}>
                 <span className="ph-plugin-stack-sheet" aria-hidden="true" />
                 <span className="ph-plugin-stack-sheet" aria-hidden="true" />
-                <span className="ph-plugin-stack-front ph-plugin-row-bubble ph-plugin-agent markdown-body markdown-body-user">
-                  {display.showNumbers && front.promptNumber !== null && (
+                <span
+                  className={`ph-plugin-stack-front ph-plugin-row-bubble markdown-body markdown-body-user${
+                    grey ? " ph-plugin-agent" : ""
+                  }`}
+                >
+                  {frontOrdinal !== null && display.numberStyle === "inline" && (
                     <span className="ph-plugin-number" aria-hidden="true">
-                      #{front.promptNumber}
+                      {frontOrdinal}
                     </span>
                   )}
                   <PanelIcon className="ph-plugin-agent-icon" name="robot" />
@@ -483,8 +508,15 @@ function AgentPromptStack({
                     <PromptMentionText text={front.content} interactive={false} />
                   </span>
                 </span>
-                <span className="ph-plugin-stack-count" aria-hidden="true">
-                  {count}
+                {frontOrdinal !== null && display.numberStyle === "pill" && (
+                  <span className="ph-plugin-pill ph-plugin-number-pill" aria-hidden="true">
+                    {frontOrdinal}
+                  </span>
+                )}
+                {/* "+2" for a stack of three: the prompts folded in behind the
+                    front one, which is already on screen. */}
+                <span className="ph-plugin-pill ph-plugin-stack-count" aria-hidden="true">
+                  +{count - 1}
                 </span>
               </span>
             )}
@@ -948,24 +980,24 @@ export function PromptHistoryPanel(props: PluginTaskPanelProps) {
     () => derivePromptHistoryRows(messagesState.messages, turnsState.turns, turnsHydrated),
     [messagesState.messages, turnsState.turns, turnsHydrated],
   );
-  // The `hide` agent-prompt style drops those rows from the list. Paging still
+  // The `hide` agent-prompt display drops those rows from the list. Paging still
   // keys off every derived row, not the visible ones: a hidden `#1` must not
   // keep the sentinel loading older pages that can never complete the list.
   const visibleRows = useMemo(
     () =>
-      display.agentPromptStyle === "hide" ? rows.filter((row) => !row.isAgentPrompt) : rows,
-    [rows, display.agentPromptStyle],
+      display.agentPromptDisplay === "hide" ? rows.filter((row) => !row.isAgentPrompt) : rows,
+    [rows, display.agentPromptDisplay],
   );
   // `collapse` folds each run of at least `agentStackMinRun` consecutive
-  // agent-sent rows into one stack. The other three styles render one plain row
+  // agent-sent rows into one stack. The other two displays render one plain row
   // per visible row, so the groups are only built where they are used and
   // their DOM stays exactly as it was.
   const rowGroups = useMemo(
     () =>
-      display.agentPromptStyle === "collapse"
+      display.agentPromptDisplay === "collapse"
         ? groupPromptHistoryRows(visibleRows, display.agentStackMinRun)
         : null,
-    [visibleRows, display.agentPromptStyle, display.agentStackMinRun],
+    [visibleRows, display.agentPromptDisplay, display.agentStackMinRun],
   );
   const state = determinePanelState(messagesState, sessionKind);
   const [expanded, setExpanded] = useState<string | null>(null);

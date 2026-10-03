@@ -8,7 +8,7 @@
 # in sync when you rename.
 id: "kandev-plugin-prompt-history"
 api_version: 2
-version: "1.3.1"
+version: "1.4.0"
 display_name: "Prompt History"
 description: "Task panel listing the active session's user prompts with parity to the shipped core panel."
 author: "kandev"
@@ -54,70 +54,101 @@ capabilities:
 # reads the stored config from GET /api/plugins/<id>/config on mount and falls
 # back to these defaults when the read fails; a saved change therefore applies
 # the next time the panel mounts (session/task switch or reload). The key names
-# and the enum values are mirrored by PANEL_CONFIG_KEYS / PANEL_DATE_FORMATS /
-# PANEL_AGENT_PROMPT_STYLES / PANEL_AGENT_STACK_MIN_RUNS in
-# ui/src/panel-config.ts, and `go test ./server/...` fails if the two sides
-# drift.
+# and the enum values are mirrored by PANEL_CONFIG_KEYS and the PANEL_*
+# constants in ui/src/panel-config.ts, and `go test ./server/...` fails if the
+# two sides drift.
 #
-# `required` lists the three selectors — `display_3_time_format`,
-# `display_5_agent_style` and `display_6_agent_stack_min`: an optional enum
-# renders a "Not set" choice on the host's form, and no selector has a
-# meaningful unset state (the panel has exactly two time formats, every prompt
-# is shown in one of the four agent styles, and a stack always has a minimum
-# run), so all three are required — each select then always shows the stored
-# value or its default and always submits one. The panel still reads an absent
-# or unknown value as the default (`relative` / `normal` / 2), which covers a
-# hand-edited config and any record written before a field was required.
+# Grouping. The host's settings form is a flat list built from each property's
+# name, title, description, type, enum, default and `required` — it has no
+# section or heading support — so the topics are made two ways: the keys are
+# ordered so a topic's settings sit together, and every title starts with its
+# topic ("Numbers: …", "Time: …", "Agent prompts: …", "Agent stacks: …"). In
+# render order:
+#   Numbers        display_1_show_numbers, display_1b_number_style
+#   Time           display_2_show_time, display_3_time_format, display_4_show_duration
+#   Agent prompts  display_5_agent_prompt_style, display_6_agent_prompt_display
+#   Agent stacks   display_7_agent_stack_min, display_8_agent_stack_expand
 #
-# `display_6_agent_stack_min` only matters while the agent style is `collapse`,
-# but it is always rendered: the host builds this form from `properties` alone
-# (name, title, description, type, enum, default, required) and has no
-# conditional-visibility keyword, so a field cannot be revealed by another
-# field's value. Its description says when it applies.
+# Order. The form renders `Object.keys(properties)`, and the host hands the
+# frontend a JSON object marshalled from a Go map — which sorts keys by byte —
+# so the declaration order below is *not* the render order and the key is the
+# only ordering lever the manifest has. `display_1b_` sorts between
+# `display_1_` and `display_2_` (`_` is below `b`), which is how the second
+# Numbers setting joins the first without renaming the keys operators may
+# already have stored.
 #
-# The `N_` segment in each key is the field's position in the host's settings
-# form. The form renders `Object.keys(properties)` in order, and the host hands
-# the frontend a JSON object marshalled from a Go map — which sorts keys — so
-# the declaration order below is *not* the render order and the key is the only
-# ordering lever the manifest has. `display_1_…` renders first (numbering),
-# `display_2_…` second (send time), `display_3_…` third (its format), and so on.
+# `required` lists the six selectors: an optional enum renders a "Not set"
+# choice on the host's form, and no selector has a meaningful unset state, so
+# all six are required — each select then always shows the stored value or its
+# default and always submits one. The panel still reads an absent or unknown
+# value as the default, which covers a hand-edited config and any record
+# written before a field existed.
+#
+# The two "Agent stacks" settings only matter while the agent prompt display is
+# `collapse`, but they are always rendered: the form has no conditional
+# visibility, so a field cannot be revealed by another field's value. Their
+# descriptions say when they apply.
 config_schema:
   type: object
   properties:
     display_1_show_numbers:
       type: boolean
       default: true
-      title: "Show prompt numbering"
-      description: "Show the #N ordinal at the start of each prompt row."
+      title: "Numbers: Show prompt numbers"
+      description: "Show the #N ordinal of each prompt."
+    display_1b_number_style:
+      type: string
+      enum: ["inline", "pill"]
+      default: "inline"
+      title: "Numbers: Style"
+      description: "Where the #N ordinal goes: inline, in front of the prompt text, or as a small pill on the top-left corner of the prompt bubble (the same pill the agent stack uses for its count). Only used when Show prompt numbers is on."
     display_2_show_time:
       type: boolean
       default: true
-      title: "Show prompt send time"
+      title: "Time: Show send time"
       description: "Show the send time (clock) at the right edge of each prompt row. Hidden send time and duration together let the prompt text use the full row width."
     display_3_time_format:
       type: string
       enum: ["relative", "absolute"]
       default: "relative"
-      title: "Send time format"
+      title: "Time: Send time format"
       description: "How the send time reads: compact relative (\"5m\"), or the absolute date and time in the host locale (short date and short time). The other form is shown on hover."
     display_4_show_duration:
       type: boolean
       default: true
-      title: "Show prompt duration"
+      title: "Time: Show duration"
       description: "Show the agent work duration (hourglass) at the right edge of each prompt row."
-    display_5_agent_style:
+    display_5_agent_prompt_style:
       type: string
-      enum: ["normal", "soft grey", "hide", "collapse"]
-      default: "normal"
-      title: "Agent prompt style"
-      description: "How prompts sent by another task's agent are shown: normal (the same bubble as other prompts), soft grey, hidden entirely, or collapse (each run of consecutive agent-sent prompts folds into one stacked card that unfolds on hover or focus)."
-    display_6_agent_stack_min:
+      enum: ["default", "soft grey"]
+      default: "default"
+      title: "Agent prompts: Style"
+      description: "The colour of prompts sent by another task's agent: default (the same bubble as other prompts) or soft grey. Independent of how they are displayed."
+    display_6_agent_prompt_display:
+      type: string
+      enum: ["default", "hide", "collapse"]
+      default: "default"
+      title: "Agent prompts: Display"
+      description: "How prompts sent by another task's agent are listed: default (one row each), hide (not shown at all), or collapse (each run of consecutive agent-sent prompts folds into one stacked card)."
+    display_7_agent_stack_min:
       type: integer
       enum: [2, 3, 4, 5]
       default: 2
-      title: "Minimum agent prompts to stack"
-      description: "Only used when Agent prompt style is collapse: the smallest run of consecutive agent-sent prompts that folds into a stack, from 2 to 5. A shorter run stays as separate grey rows."
-  required: ["display_3_time_format", "display_5_agent_style", "display_6_agent_stack_min"]
+      title: "Agent stacks: Minimum prompts to stack"
+      description: "Only used when Agent prompts: Display is collapse: the smallest run of consecutive agent-sent prompts that folds into a stack, from 2 to 5. A shorter run stays as separate rows."
+    display_8_agent_stack_expand:
+      type: string
+      enum: ["hover", "click"]
+      default: "hover"
+      title: "Agent stacks: Expand on"
+      description: "Only used when Agent prompts: Display is collapse: how a stack opens. hover (also on keyboard focus) opens it under the pointer and closes it when the pointer leaves; click opens and closes it only when you click it."
+  required:
+    - "display_1b_number_style"
+    - "display_3_time_format"
+    - "display_5_agent_prompt_style"
+    - "display_6_agent_prompt_display"
+    - "display_7_agent_stack_min"
+    - "display_8_agent_stack_expand"
 
 # ui.bundle points at the ES module frontend half, built by ui/build.mjs into
 # ui/bundle.js and served by kandev from the extracted package at

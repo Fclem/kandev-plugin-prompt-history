@@ -1,5 +1,56 @@
 # Changelog
 
+## [1.4.0] - 2026-10-03
+
+### Added
+
+- **Expand on click**: a new setting, `Agent stacks: Expand on` (`hover` by
+  default, or `click`). With `click`, a folded agent stack unfolds and folds
+  only when you click it (or press Enter/Space on it); hovering or tabbing over
+  it does nothing, and it stays as you left it. `hover` is the previous
+  behaviour.
+- **Prompt numbers as pills**: a new setting, `Numbers: Style` (`inline` by
+  default, or `pill`). `pill` draws the `#N` ordinal in the same small pill the
+  agent stack uses for its count, on the top-left corner of the prompt bubble
+  (and of a stack's front bubble), instead of inline in front of the text.
+- **Settings grouped by topic**: the settings form is now ordered and labelled
+  by topic — `Numbers: …`, `Time: …`, `Agent prompts: …`, `Agent stacks: …`. The
+  host's form is a flat list with no sections, so a topic is its adjacent
+  settings plus the label prefix.
+
+### Changed
+
+- **The stack's count pill reads `+n`**, the prompts folded in behind the
+  front one: `+2` for a run of three (it used to read `3`). The button's
+  accessible label still carries the total.
+- **Agent prompt style split in two**, so colour and listing are independent:
+  - `Agent prompts: Style` — `default` / `soft grey`, the bubble colour;
+  - `Agent prompts: Display` — `default` / `hide` / `collapse`, how they are
+    listed.
+  Before, `collapse` always painted agent prompts grey; now it follows the
+  style, and the stack's cards take the same colour (the reference's prompt
+  colour by default, grey with `soft grey`).
+- The `Agent stacks` settings keep their labels but are listed together after
+  the agent prompt settings.
+
+### Notes
+
+- **Two stored settings are read as their defaults until the form is saved
+  once.** The old combined `display_5_agent_style` (normal / soft grey / hide /
+  collapse) is replaced by `display_5_agent_prompt_style` and
+  `display_6_agent_prompt_display` — new keys, so a stored `hide` or `collapse`
+  can never be misread as a colour — and the stack minimum moved from
+  `display_6_agent_stack_min` to `display_7_agent_stack_min`. The other four
+  keys (`display_1_show_numbers`, `display_2_show_time`,
+  `display_3_time_format`, `display_4_show_duration`) are unchanged and keep
+  their stored values.
+- The new numbers setting is `display_1b_number_style`: the host sorts keys by
+  byte and `_` sorts below `b`, so it lands between `display_1_…` and
+  `display_2_…` without renaming either.
+- The two `Agent stacks` settings only matter while the display is `collapse`,
+  but the host's form cannot hide a field behind another field's value, so they
+  are always listed and their descriptions say when they apply.
+
 ## [1.3.1] - 2026-10-03
 
 ### Added

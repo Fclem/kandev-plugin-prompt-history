@@ -2482,7 +2482,7 @@ describe("PromptHistoryPanel display settings", () => {
     );
   });
 
-  it("applies the agent prompt style: normal, soft grey, hide", async () => {
+  it("applies the agent prompt style and display independently", async () => {
     // Newer first, so the agent prompt lands at row 0.
     const agentRow = message({
       id: "agent",
@@ -2499,8 +2499,8 @@ describe("PromptHistoryPanel display settings", () => {
     });
     const rows = () => makeMessages([agentRow, userRow], { hasMore: false });
 
-    // Default (`normal`): the agent row keeps the reference's prompt colour and
-    // the robot glyph.
+    // Defaults: the agent row keeps the reference's prompt colour and the robot
+    // glyph.
     renderPanel(rows(), makeTurns([]));
     await flushConfigRead();
     expect(screen.getByTestId("ph-plugin-row-0").querySelector(".ph-plugin-agent")).toBeNull();
@@ -2509,9 +2509,9 @@ describe("PromptHistoryPanel display settings", () => {
     ).toBeTruthy();
     expect(screen.getByTestId("ph-plugin-row-1")).toBeTruthy();
 
-    // `soft grey`: only agent-sent bubbles are repainted; the glyph stays.
+    // Style `soft grey`: only agent-sent bubbles are repainted; the glyph stays.
     cleanup();
-    renderPanel(rows(), makeTurns([]), {}, { config: { display_5_agent_style: "soft grey" } });
+    renderPanel(rows(), makeTurns([]), {}, { config: { display_5_agent_prompt_style: "soft grey" } });
     await flushConfigRead();
     expect(screen.getByTestId("ph-plugin-row-0").querySelector(".ph-plugin-agent")).toBeTruthy();
     expect(screen.getByTestId("ph-plugin-row-1").querySelector(".ph-plugin-agent")).toBeNull();
@@ -2520,9 +2520,11 @@ describe("PromptHistoryPanel display settings", () => {
     ).toBeTruthy();
     expect(screen.getByTestId("ph-plugin-row-1")).toBeTruthy();
 
-    // `hide`: agent-sent rows are gone; the remaining row keeps its own order.
+    // Display `hide`: agent-sent rows are gone; the remaining row keeps its own
+    // order. The colour setting has nothing left to paint here, and stays
+    // independent of it.
     cleanup();
-    renderPanel(rows(), makeTurns([]), {}, { config: { display_5_agent_style: "hide" } });
+    renderPanel(rows(), makeTurns([]), {}, { config: { display_6_agent_prompt_display: "hide" } });
     await flushConfigRead();
     expect(screen.getAllByTestId(/^ph-plugin-row-/)).toHaveLength(1);
     const remaining = screen.getByTestId("ph-plugin-row-0");
@@ -2553,19 +2555,57 @@ describe("PromptHistoryPanel display settings", () => {
       makeMessages([agentFirst, userRow], { hasMore: true }),
       makeTurns([]),
       {},
-      { config: { display_5_agent_style: "hide" } },
+      { config: { display_6_agent_prompt_display: "hide" } },
     );
     await flushConfigRead();
 
     expect(screen.queryByTestId("ph-plugin-sentinel")).toBeNull();
     expect(screen.getAllByTestId(/^ph-plugin-row-/)).toHaveLength(1);
   });
+
+  it("puts the ordinal in a corner pill on the bubble when the numbers style is pill", async () => {
+    const { messages, turns } = boundedRow();
+    renderPanel(messages, turns, {}, { config: { display_1b_number_style: "pill" } });
+    await flushConfigRead();
+
+    // The pill carries the same `#N` and sits beside the bubble, not inside it
+    // (the bubble clips its overflow, and the pill floats half outside it).
+    const main = screen.getByTestId("ph-plugin-row-0").querySelector(".ph-plugin-row-main");
+    const pill = main?.querySelector(".ph-plugin-number-pill");
+    expect(pill?.textContent).toBe("#1");
+    expect(pill?.getAttribute("aria-hidden")).toBe("true");
+    const bubble = document.querySelector('[data-message-id="m"]');
+    expect(bubble?.contains(pill ?? null)).toBe(false);
+    // ...and is no longer inline in front of the text.
+    expect(bubble?.querySelector(".ph-plugin-number")).toBeNull();
+    // The accessible row label is unaffected by where the ordinal is drawn.
+    expect(screen.getByTestId("ph-plugin-navigate-0").getAttribute("aria-label")).toBe("Prompt 1");
+  });
+
+  it("keeps the ordinal inline by default and draws no pill without numbers", async () => {
+    const inline = boundedRow();
+    renderPanel(inline.messages, inline.turns);
+    await flushConfigRead();
+    const bubble = document.querySelector('[data-message-id="m"]');
+    expect(bubble?.querySelector(".ph-plugin-number")?.textContent).toBe("#1");
+    expect(document.querySelector(".ph-plugin-number-pill")).toBeNull();
+
+    // Numbers off wins over the style: no ordinal in either place.
+    cleanup();
+    const hidden = boundedRow();
+    renderPanel(hidden.messages, hidden.turns, {}, {
+      config: { display_1_show_numbers: false, display_1b_number_style: "pill" },
+    });
+    await flushConfigRead();
+    expect(document.querySelector(".ph-plugin-number-pill")).toBeNull();
+    expect(document.querySelector(".ph-plugin-number")).toBeNull();
+  });
 });
 
-// ── Agent prompt stacks (`display_5_agent_style: collapse`) ────────────────
+// ── Agent prompt stacks (`display_6_agent_prompt_display: collapse`) ───────
 
 describe("PromptHistoryPanel agent prompt stacks", () => {
-  const COLLAPSE = { config: { display_5_agent_style: "collapse" } };
+  const COLLAPSE = { config: { display_6_agent_prompt_display: "collapse" } };
 
   /** A prompt sent by another task's agent; the foreign `senderTaskId` is the
    * marker `derive` reads. */
@@ -2619,17 +2659,19 @@ describe("PromptHistoryPanel agent prompt stacks", () => {
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     expect(toggle.getAttribute("aria-label")).toBe("Expand 3 agent prompts");
 
-    // The deck: the newest prompt on the front bubble, grey like every agent
-    // prompt in this mode, over two offset outlines.
+    // The deck: the newest prompt on the front bubble over two offset outlines.
+    // Colour is its own setting: with the default agent style the deck is the
+    // reference's prompt colour, not grey (see the colour test below).
     const front = stack.querySelector(".ph-plugin-stack-front");
-    expect(front?.classList.contains("ph-plugin-agent")).toBe(true);
+    expect(front?.classList.contains("ph-plugin-agent")).toBe(false);
     expect(front?.textContent).toContain("#3");
     expect(front?.textContent).toContain("prompt 3");
     expect(stack.querySelectorAll(".ph-plugin-stack-sheet")).toHaveLength(2);
-    // The number of folded prompts floats on the card's corner; it is
-    // decorative, since the button's label already says it.
+    // The number of prompts folded in behind the front one floats on the
+    // card's corner as "+n" (two behind a front bubble of three); it is
+    // decorative, since the button's label already says the total.
     const badge = stack.querySelector(".ph-plugin-stack-count");
-    expect(badge?.textContent).toBe("3");
+    expect(badge?.textContent).toBe("+2");
     expect(badge?.getAttribute("aria-hidden")).toBe("true");
 
     // The card's meta column reports the front (newest) row's own values.
@@ -2682,10 +2724,11 @@ describe("PromptHistoryPanel agent prompt stacks", () => {
 
     expect(document.querySelector(".ph-plugin-stack")).toBeNull();
     expect(screen.getAllByTestId(/^ph-plugin-row-/)).toHaveLength(2);
-    // Still an agent prompt — grey, robot glyph, server ordinal — with no card
-    // chrome around it.
+    // Still an agent prompt — robot glyph, server ordinal, and the colour the
+    // agent colour setting gives it (the reference's, by default) — with no
+    // card chrome around it.
     const lone = screen.getByTestId("ph-plugin-row-0");
-    expect(lone.querySelector(".ph-plugin-agent")).toBeTruthy();
+    expect(lone.querySelector(".ph-plugin-agent")).toBeNull();
     expect(lone.querySelector(".ph-plugin-agent-icon")).toBeTruthy();
     expect(lone.textContent).toContain("#2");
   });
@@ -2773,32 +2816,33 @@ describe("PromptHistoryPanel agent prompt stacks", () => {
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
   });
 
-  it("leaves hide, soft grey, and normal ungrouped", async () => {
+  it("leaves hide, a soft grey style, and the default display ungrouped", async () => {
     const mixedRun = () => [
       ...agentRun(),
       userPrompt("u1", 1, "2026-01-01T00:00:00Z"),
     ];
 
-    // `hide`: the run is still dropped entirely, and what remains keeps its
-    // server ordinal.
+    // Display `hide`: the run is still dropped entirely, and what remains keeps
+    // its server ordinal.
     renderPanel(
       makeMessages(mixedRun(), { hasMore: false }),
       makeTurns([]),
       {},
-      { config: { display_5_agent_style: "hide" } },
+      { config: { display_6_agent_prompt_display: "hide" } },
     );
     await flushConfigRead();
     expect(document.querySelector(".ph-plugin-stack")).toBeNull();
     expect(screen.getAllByTestId(/^ph-plugin-row-/)).toHaveLength(1);
     expect(screen.getByTestId("ph-plugin-row-0").textContent).toContain("prompt 1");
 
-    // `soft grey`: three separate rows, each painted grey, no card.
+    // Style `soft grey` with the default display: three separate rows, each
+    // painted grey, no card.
     cleanup();
     renderPanel(
       makeMessages(agentRun(), { hasMore: false }),
       makeTurns([]),
       {},
-      { config: { display_5_agent_style: "soft grey" } },
+      { config: { display_5_agent_prompt_style: "soft grey" } },
     );
     await flushConfigRead();
     expect(document.querySelector(".ph-plugin-stack")).toBeNull();
@@ -2806,7 +2850,7 @@ describe("PromptHistoryPanel agent prompt stacks", () => {
     expect(greyRows).toHaveLength(3);
     for (const row of greyRows) expect(row.querySelector(".ph-plugin-agent")).toBeTruthy();
 
-    // `normal`: three separate rows in the reference's prompt colour.
+    // Defaults: three separate rows in the reference's prompt colour.
     cleanup();
     renderPanel(makeMessages(agentRun(), { hasMore: false }), makeTurns([]));
     await flushConfigRead();
@@ -2845,7 +2889,7 @@ describe("PromptHistoryPanel agent prompt stacks", () => {
     expect(stack.querySelectorAll(".ph-plugin-stack-rows .ph-plugin-row-meta")).toHaveLength(3);
   });
 
-  it("stacks only runs of at least display_6_agent_stack_min prompts", async () => {
+  it("stacks only runs of at least display_7_agent_stack_min prompts", async () => {
     // Newest first: a run of two, a user prompt, then a run of four.
     const mixed = () => [
       agentPrompt("a7", 7, "2026-01-01T00:00:07Z"),
@@ -2862,18 +2906,19 @@ describe("PromptHistoryPanel agent prompt stacks", () => {
     await flushConfigRead();
     expect(screen.getByTestId("ph-plugin-stack-0")).toBeTruthy();
     expect(screen.getByTestId("ph-plugin-stack-3")).toBeTruthy();
-    expect(screen.getByTestId("ph-plugin-stack-3").textContent).toContain("4");
+    expect(screen.getByTestId("ph-plugin-stack-3").textContent).toContain("+3");
 
     // 3: the run of two stays two separate grey rows; the run of four folds.
     cleanup();
     renderPanel(makeMessages(mixed(), { hasMore: false }), makeTurns([]), {}, {
-      config: { display_5_agent_style: "collapse", display_6_agent_stack_min: 3 },
+      config: { display_6_agent_prompt_display: "collapse", display_7_agent_stack_min: 3 },
     });
     await flushConfigRead();
     expect(screen.queryByTestId("ph-plugin-stack-0")).toBeNull();
     expect(screen.getByTestId("ph-plugin-stack-3")).toBeTruthy();
     const shortRun = [0, 1].map((index) => screen.getByTestId(`ph-plugin-row-${index}`));
-    for (const row of shortRun) expect(row.querySelector(".ph-plugin-agent")).toBeTruthy();
+    // They are still agent prompts (robot glyph), ungrouped.
+    for (const row of shortRun) expect(row.querySelector(".ph-plugin-agent-icon")).toBeTruthy();
     // Ordinals are untouched by the threshold.
     expect(shortRun.map((row) => row.querySelector(".ph-plugin-number")?.textContent)).toEqual([
       "#7",
@@ -2883,7 +2928,7 @@ describe("PromptHistoryPanel agent prompt stacks", () => {
     // 5: even the run of four stays separate, so nothing folds at all.
     cleanup();
     renderPanel(makeMessages(mixed(), { hasMore: false }), makeTurns([]), {}, {
-      config: { display_5_agent_style: "collapse", display_6_agent_stack_min: 5 },
+      config: { display_6_agent_prompt_display: "collapse", display_7_agent_stack_min: 5 },
     });
     await flushConfigRead();
     expect(document.querySelector(".ph-plugin-stack")).toBeNull();
@@ -2973,5 +3018,90 @@ describe("PromptHistoryPanel agent prompt stacks", () => {
     // The first real movement over the card does.
     fireEvent.mouseMove(toggle);
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("colours the deck from the agent style setting, not from collapse", async () => {
+    // Default style: the front bubble and both cards use the reference's prompt
+    // colour.
+    renderPanel(makeMessages(agentRun(), { hasMore: false }), makeTurns([]), {}, COLLAPSE);
+    await flushConfigRead();
+    expect(document.querySelector(".ph-plugin-stack-grey")).toBeNull();
+    expect(document.querySelector(".ph-plugin-stack-front.ph-plugin-agent")).toBeNull();
+
+    // Soft grey style: the deck and its front bubble go grey.
+    cleanup();
+    renderPanel(makeMessages(agentRun(), { hasMore: false }), makeTurns([]), {}, {
+      config: {
+        display_6_agent_prompt_display: "collapse",
+        display_5_agent_prompt_style: "soft grey",
+      },
+    });
+    await flushConfigRead();
+    expect(document.querySelector(".ph-plugin-stack-deck.ph-plugin-stack-grey")).toBeTruthy();
+    expect(document.querySelector(".ph-plugin-stack-front.ph-plugin-agent")).toBeTruthy();
+  });
+
+  it("unfolds and folds only on a click when the stack expands on click", async () => {
+    renderPanel(makeMessages(agentRun(), { hasMore: false }), makeTurns([]), {}, {
+      config: {
+        display_6_agent_prompt_display: "collapse",
+        display_8_agent_stack_expand: "click",
+      },
+    });
+    await flushConfigRead();
+    const toggle = screen.getByTestId("ph-plugin-stack-toggle-0");
+
+    // Hovering, moving over it, and focusing it leave it folded.
+    fireEvent.mouseOver(toggle);
+    fireEvent.mouseMove(toggle);
+    act(() => {
+      toggle.focus();
+    });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryAllByTestId(/^ph-plugin-row-/)).toHaveLength(0);
+
+    // A click (or Enter/Space, which a button turns into one) unfolds it.
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getAllByTestId(/^ph-plugin-row-/)).toHaveLength(3);
+
+    // Leaving with the pointer or the focus does not fold it: it stays as the
+    // user left it.
+    fireEvent.mouseOut(toggle);
+    act(() => {
+      toggle.blur();
+    });
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getAllByTestId(/^ph-plugin-row-/)).toHaveLength(3);
+
+    // Another click on the header folds it.
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryAllByTestId(/^ph-plugin-row-/)).toHaveLength(0);
+  });
+
+  it("draws the ordinal as a corner pill on the folded card and on each row when numbers are pills", async () => {
+    renderPanel(makeMessages(agentRun(), { hasMore: false }), makeTurns([]), {}, {
+      config: {
+        display_6_agent_prompt_display: "collapse",
+        display_1b_number_style: "pill",
+      },
+    });
+    await flushConfigRead();
+    const stack = screen.getByTestId("ph-plugin-stack-0");
+
+    // Folded: the front prompt's `#3` is a pill on the deck's top-left, beside
+    // (not inside) the front bubble, next to the `+2` count on the top-right.
+    const front = stack.querySelector(".ph-plugin-stack-front");
+    const numberPill = stack.querySelector(".ph-plugin-number-pill");
+    expect(numberPill?.textContent).toBe("#3");
+    expect(front?.contains(numberPill ?? null)).toBe(false);
+    expect(front?.querySelector(".ph-plugin-number")).toBeNull();
+    expect(stack.querySelector(".ph-plugin-stack-count")?.textContent).toBe("+2");
+
+    // Unfolded: every row carries its own pill.
+    fireEvent.mouseOver(screen.getByTestId("ph-plugin-stack-toggle-0"));
+    const pills = [...stack.querySelectorAll(".ph-plugin-stack-rows .ph-plugin-number-pill")];
+    expect(pills.map((pill) => pill.textContent)).toEqual(["#3", "#2", "#1"]);
   });
 });

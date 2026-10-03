@@ -18,6 +18,7 @@ package main
 import (
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -149,31 +150,64 @@ func TestManifestRuntimeContract(t *testing.T) {
 // render the panel's non-default branch instead of its original row.
 //
 // The order below is the field's order in the manifest *and* in the settings
-// form: the `N_` segment exists because the host renders `Object.keys` of the
-// schema, which reaches the browser as a JSON object marshalled from a Go map
-// (sorted), so the key is the only ordering lever. A renamed or renumbered key
-// therefore reorders the form, which is why the expected slice is pinned whole.
+// form: the host renders `Object.keys` of the schema, which reaches the browser
+// as a JSON object marshalled from a Go map, and Go marshals map keys sorted by
+// byte, so the key is the only ordering lever. The form has no sections, so the
+// topics (numbers, time, agent prompts, agent stacks) exist only as this order
+// plus the title prefix pinned below. `display_1b_` sorts between `display_1_`
+// and `display_2_` because '_' is below 'b'. A renamed or renumbered key
+// therefore reorders or ungroups the form, which is why the expected slice is
+// pinned whole and checked against its own sort.
 var wantPanelConfigKeys = []string{
 	"display_1_show_numbers",
+	"display_1b_number_style",
 	"display_2_show_time",
 	"display_3_time_format",
 	"display_4_show_duration",
-	"display_5_agent_style",
-	"display_6_agent_stack_min",
+	"display_5_agent_prompt_style",
+	"display_6_agent_prompt_display",
+	"display_7_agent_stack_min",
+	"display_8_agent_stack_expand",
 }
 
-// The three selectors: the only non-boolean fields and the only required ones.
-const (
-	wantPanelDateFormatKey    = "display_3_time_format"
-	wantPanelAgentStyleKey    = "display_5_agent_style"
-	wantPanelAgentStackMinKey = "display_6_agent_stack_min"
-)
+// The topic each setting is listed under: the title prefix the host renders
+// verbatim as the field label.
+var wantPanelTopics = []string{
+	"Numbers: ",
+	"Numbers: ",
+	"Time: ",
+	"Time: ",
+	"Time: ",
+	"Agent prompts: ",
+	"Agent prompts: ",
+	"Agent stacks: ",
+	"Agent stacks: ",
+}
 
-// Every field except the three selectors is a boolean toggle.
+// Every field except the selectors is a boolean toggle.
 var wantPanelBooleanKeys = []string{
 	"display_1_show_numbers",
 	"display_2_show_time",
 	"display_4_show_duration",
+}
+
+// The selectors: the only non-boolean fields and the only required ones. Each
+// must offer exactly the members the reader understands, default to the
+// panel's original appearance, and be required: requiring it is what removes
+// the host form's "Not set" choice, so a missing `required` silently
+// reintroduces a meaningless unset state. `enum` doubles as the TypeScript
+// literal, which the panel's constant must declare identically.
+var wantPanelSelectors = []struct {
+	key, valueType, enum, def, tsConst string
+}{
+	{"display_1b_number_style", "string", `["inline", "pill"]`, `"inline"`, "PANEL_NUMBER_STYLES"},
+	{"display_3_time_format", "string", `["relative", "absolute"]`, `"relative"`, "PANEL_DATE_FORMATS"},
+	{"display_5_agent_prompt_style", "string", `["default", "soft grey"]`, `"default"`, "PANEL_AGENT_PROMPT_STYLES"},
+	{"display_6_agent_prompt_display", "string", `["default", "hide", "collapse"]`, `"default"`, "PANEL_AGENT_PROMPT_DISPLAYS"},
+	// The stack minimum is an integer selector offering exactly 2 to 5,
+	// defaulting to 2 (a run of two is the smallest thing worth folding).
+	{"display_7_agent_stack_min", "integer", `[2, 3, 4, 5]`, `2`, "PANEL_AGENT_STACK_MIN_RUNS"},
+	{"display_8_agent_stack_expand", "string", `["hover", "click"]`, `"hover"`, "PANEL_AGENT_STACK_EXPANDS"},
 }
 
 func TestPanelConfigKeysAgreement(t *testing.T) {
@@ -196,12 +230,20 @@ func TestPanelConfigKeysAgreement(t *testing.T) {
 		}
 	}
 
-	// The `N_` prefix must be lexicographically ordered too: the host sorts the
-	// keys, so a prefix that does not sort with its index would render the form
-	// in an order this slice cannot see.
+	// The host sorts the keys, so the render order is the byte-sorted order. If
+	// the pinned slice is not already sorted, the form would be rendered in an
+	// order this test cannot see.
+	if !sort.StringsAreSorted(wantPanelConfigKeys) {
+		t.Errorf("config keys are not in byte-sorted order, so the host's form would reorder them: %v", wantPanelConfigKeys)
+	}
+
+	// Topics: each setting's title starts with its topic, which is the only
+	// grouping the host's flat form can show.
 	for i, key := range wantPanelConfigKeys {
-		if key[:10] != "display_"+string(rune('1'+i))+"_" {
-			t.Errorf("manifest config_schema property %d = %q, want the display_%d_ render-order prefix", i, key, i+1)
+		prop := captureDeclaration(t, block, `(?m)^    `+key+`:\n((?:      [^\n]*\n)+)`, "manifest.yaml")
+		title := captureDeclaration(t, prop, `(?m)^      title: "([^"]+)"$`, "manifest.yaml")
+		if !strings.HasPrefix(title, wantPanelTopics[i]) {
+			t.Errorf("manifest config_schema %s title = %q, want it to start with %q", key, title, wantPanelTopics[i])
 		}
 	}
 
@@ -215,60 +257,38 @@ func TestPanelConfigKeysAgreement(t *testing.T) {
 	}
 	for _, key := range wantPanelBooleanKeys {
 		prop := captureDeclaration(t, block, `(?m)^    `+key+`:\n((?:      [^\n]*\n)+)`, "manifest.yaml")
-		if !strings.Contains(prop, "default: ") {
-			t.Errorf("manifest config_schema %s declares no default", key)
+		if !strings.Contains(prop, "default: true\n") {
+			t.Errorf("manifest config_schema %s does not default to true", key)
 		}
 	}
-	// The date-format selector must offer exactly the values the reader
-	// understands, default to the relative form the reference shows, and be
-	// required: requiring it is what removes the host form's "Not set" choice,
-	// so a missing `required` silently reintroduces a third, meaningless state.
-	dateFormat := captureDeclaration(t, block, `(?m)^    `+wantPanelDateFormatKey+`:\n((?:      [^\n]*\n)+)`, "manifest.yaml")
-	if !strings.Contains(dateFormat, `enum: ["relative", "absolute"]`) {
-		t.Errorf("manifest config_schema %s enum = %q, want [\"relative\", \"absolute\"]", wantPanelDateFormatKey, dateFormat)
+
+	for _, selector := range wantPanelSelectors {
+		prop := captureDeclaration(t, block, `(?m)^    `+selector.key+`:\n((?:      [^\n]*\n)+)`, "manifest.yaml")
+		if !strings.Contains(prop, "type: "+selector.valueType+"\n") {
+			t.Errorf("manifest config_schema %s is not type %s: %q", selector.key, selector.valueType, prop)
+		}
+		if !strings.Contains(prop, "enum: "+selector.enum+"\n") {
+			t.Errorf("manifest config_schema %s enum = %q, want %s", selector.key, prop, selector.enum)
+		}
+		if !strings.Contains(prop, "default: "+selector.def+"\n") {
+			t.Errorf("manifest config_schema %s does not default to %s", selector.key, selector.def)
+		}
+		literal := regexp.MustCompile(`(?m)^export const ` + selector.tsConst + ` = ` + regexp.QuoteMeta(selector.enum) + ` as const;`)
+		if !literal.MatchString(panelConfig) {
+			t.Errorf("ui/src/panel-config.ts does not declare %s as the manifest's %s", selector.tsConst, selector.enum)
+		}
 	}
-	if !strings.Contains(dateFormat, `default: "relative"`) {
-		t.Errorf("manifest config_schema %s does not default to \"relative\"", wantPanelDateFormatKey)
+
+	requiredBlock := captureDeclaration(t, block, `(?m)^  required:\n((?:    - "[^"]+"\n)+)`, "manifest.yaml")
+	var required []string
+	for _, entry := range regexp.MustCompile(`"([^"]+)"`).FindAllStringSubmatch(requiredBlock, -1) {
+		required = append(required, entry[1])
 	}
-	// The agent-prompt style is the same shape: the four states the reader
-	// knows, defaulting to the reference's row, and required for the same
-	// reason.
-	agentStyle := captureDeclaration(t, block, `(?m)^    `+wantPanelAgentStyleKey+`:\n((?:      [^\n]*\n)+)`, "manifest.yaml")
-	if !strings.Contains(agentStyle, `enum: ["normal", "soft grey", "hide", "collapse"]`) {
-		t.Errorf("manifest config_schema %s enum = %q, want [\"normal\", \"soft grey\", \"hide\", \"collapse\"]", wantPanelAgentStyleKey, agentStyle)
+	var wantRequired []string
+	for _, selector := range wantPanelSelectors {
+		wantRequired = append(wantRequired, selector.key)
 	}
-	if !strings.Contains(agentStyle, `default: "normal"`) {
-		t.Errorf("manifest config_schema %s does not default to \"normal\"", wantPanelAgentStyleKey)
-	}
-	// The stack minimum is an integer selector offering exactly 2 to 5,
-	// defaulting to 2 (a run of two is the smallest thing worth folding), and
-	// required for the same reason. The host's form has no conditional
-	// visibility, so it is declared like any other field and always rendered.
-	stackMin := captureDeclaration(t, block, `(?m)^    `+wantPanelAgentStackMinKey+`:\n((?:      [^\n]*\n)+)`, "manifest.yaml")
-	if !strings.Contains(stackMin, "type: integer\n") {
-		t.Errorf("manifest config_schema %s is not an integer: %q", wantPanelAgentStackMinKey, stackMin)
-	}
-	if !strings.Contains(stackMin, `enum: [2, 3, 4, 5]`) {
-		t.Errorf("manifest config_schema %s enum = %q, want [2, 3, 4, 5]", wantPanelAgentStackMinKey, stackMin)
-	}
-	if !strings.Contains(stackMin, "default: 2\n") {
-		t.Errorf("manifest config_schema %s does not default to 2", wantPanelAgentStackMinKey)
-	}
-	required := captureDeclaration(t, block, `(?m)^  required: (.+)$`, "manifest.yaml")
-	wantRequired := `["` + wantPanelDateFormatKey + `", "` + wantPanelAgentStyleKey + `", "` + wantPanelAgentStackMinKey + `"]`
-	if required != wantRequired {
-		t.Errorf("manifest config_schema required = %s, want %s", required, wantRequired)
-	}
-	panelDateFormatLiterals := regexp.MustCompile(`(?m)^export const PANEL_DATE_FORMATS = \["relative", "absolute"\] as const;`)
-	if !panelDateFormatLiterals.MatchString(panelConfig) {
-		t.Errorf("ui/src/panel-config.ts does not declare PANEL_DATE_FORMATS as the manifest's two values")
-	}
-	panelAgentStyleLiterals := regexp.MustCompile(`(?m)^export const PANEL_AGENT_PROMPT_STYLES = \["normal", "soft grey", "hide", "collapse"\] as const;`)
-	if !panelAgentStyleLiterals.MatchString(panelConfig) {
-		t.Errorf("ui/src/panel-config.ts does not declare PANEL_AGENT_PROMPT_STYLES as the manifest's four values")
-	}
-	panelAgentStackMinLiterals := regexp.MustCompile(`(?m)^export const PANEL_AGENT_STACK_MIN_RUNS = \[2, 3, 4, 5\] as const;`)
-	if !panelAgentStackMinLiterals.MatchString(panelConfig) {
-		t.Errorf("ui/src/panel-config.ts does not declare PANEL_AGENT_STACK_MIN_RUNS as the manifest's four values")
+	if strings.Join(required, ",") != strings.Join(wantRequired, ",") {
+		t.Errorf("manifest config_schema required = %v, want %v", required, wantRequired)
 	}
 }

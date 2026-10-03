@@ -128,12 +128,13 @@ export function derivePromptHistoryRows(
 }
 
 /**
- * One rendered unit of the prompt list under `display_5_agent_style:
+ * One rendered unit of the prompt list under `display_6_agent_prompt_display:
  * collapse`: either a single row (every non-agent row, and every agent row of a
  * run shorter than the operator's minimum — such a run has nothing to fold, so
- * its rows keep the plain row and the grey bubble) or a stack of at least that
- * many consecutive agent-sent rows. The panel renders a `stack` as one folded
- * card; `row` renders exactly as every other mode's row.
+ * its rows keep the plain row, in whatever colour the agent style gives it) or
+ * a stack of at least that many consecutive agent-sent rows. The panel renders
+ * a `stack` as one folded card; `row` renders exactly as every other mode's
+ * row.
  */
 export type PromptHistoryRowGroup =
   | { kind: "row"; startIndex: number; row: PromptHistoryRow }
@@ -143,7 +144,7 @@ export type PromptHistoryRowGroup =
  * Fold each run of at least `minRun` consecutive agent-sent rows into one
  * `stack` group, in the derived list's own page order (newest first, no
  * re-sort); shorter runs stay one `row` group per row. `minRun` is the
- * operator's `display_6_agent_stack_min` (2 to 5); a value below 2 would stack
+ * operator's `display_7_agent_stack_min` (2 to 5); a value below 2 would stack
  * a lone row, so it is clamped to 2. `front` is the run's newest row — the one
  * the folded card shows and whose send time and duration the card's meta column
  * reports — and `rest` holds the older rows it covers.

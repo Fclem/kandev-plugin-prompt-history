@@ -9,7 +9,7 @@
  * row labels, expand/collapse, duration units, and the panel states). The
  * stack keys (`expandAgentPrompts`, `collapseAgentPrompts`,
  * `agentPromptStackLabel`) are this plugin's own: the core panel has no
- * folding, so `display_5_agent_style: collapse` needs copy the reference
+ * folding, so `display_6_agent_prompt_display: collapse` needs copy the reference
  * never carried.
  */
 export const CATALOGS = {
