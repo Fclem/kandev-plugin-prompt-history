@@ -70,6 +70,10 @@ settings looks exactly as it always did.
   navigation, and favorite highlight. Folding never renumbers prompts and never
   changes pagination: paging still keys off every derived row, so a folded run
   whose oldest member is `#1` still stops older-page loading.
+
+  ![The three agent prompts of a folded run as one stacked card, the newest prompt's grey bubble over two offset outlines](docs/assets/prompt-history-agent-stack-folded-light.png)
+
+  ![The same run unfolded on hover: a count chip above the three agent prompt rows, each with its ordinal, robot glyph, and meta column](docs/assets/prompt-history-agent-stack-expanded-light.png)
 - **Both selectors are required**, which is what removes the host form's "Not set"
   choice, and the panel reads an absent or unknown value as the default.
 

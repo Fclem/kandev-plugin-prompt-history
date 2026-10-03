@@ -274,6 +274,8 @@ Module layout:
   reserves that overhang — so the deck reads as stacked cards in both themes
   instead of a second, darker bubble, and the front bubble's own radius stays
   the host's `--radius` token.
+
+  ![The folded agent stack rendered from the packaged bundle and stylesheet on the host's dark theme tokens: the grey front bubble over two offset grey outlines](docs/assets/prompt-history-agent-stack-folded-dark.png)
 - `ui/src/derive.ts` — pure entry derivation from the Host DTOs: `#N`
   ordinal from `promptIndex`, agent-sent flag from `senderTaskId`, and
   duration bounded by the earlier of turn completion and the
