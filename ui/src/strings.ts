@@ -6,7 +6,11 @@
  *
  * Keys are flat (`^[a-z][a-zA-Z0-9_-]*$`) and match the parity reference's
  * user-facing copy in the apps/web/src/locales task.json catalogs (the promptHistory*
- * row labels, expand/collapse, duration units, and the panel states).
+ * row labels, expand/collapse, duration units, and the panel states). The
+ * stack keys (`expandAgentPrompts`, `collapseAgentPrompts`,
+ * `agentPromptStackLabel`) are this plugin's own: the core panel has no
+ * folding, so `display_6_agent_prompt_display: collapse` needs copy the reference
+ * never carried.
  */
 export const CATALOGS = {
   en: {
@@ -15,6 +19,9 @@ export const CATALOGS = {
     promptHistoryPromptLabelGeneric: "Prompt",
     expandPrompt: "Expand prompt",
     collapsePrompt: "Collapse prompt",
+    expandAgentPrompts: "Expand {{count}} agent prompts",
+    collapseAgentPrompts: "Collapse {{count}} agent prompts",
+    agentPromptStackLabel: "{{count}} agent prompts",
     durationUnitSeconds: "s",
     durationUnitMinutes: "m",
     durationUnitHours: "h",
@@ -32,6 +39,9 @@ export const CATALOGS = {
     promptHistoryPromptLabelGeneric: "Prompt",
     expandPrompt: "Expandir prompt",
     collapsePrompt: "Recolher prompt",
+    expandAgentPrompts: "Expandir {{count}} prompts do agente",
+    collapseAgentPrompts: "Recolher {{count}} prompts do agente",
+    agentPromptStackLabel: "{{count}} prompts do agente",
     durationUnitSeconds: "s",
     durationUnitMinutes: "m",
     durationUnitHours: "h",
@@ -49,6 +59,9 @@ export const CATALOGS = {
     promptHistoryPromptLabelGeneric: "提示",
     expandPrompt: "展开提示",
     collapsePrompt: "收起提示",
+    expandAgentPrompts: "展开 {{count}} 条代理提示",
+    collapseAgentPrompts: "收起 {{count}} 条代理提示",
+    agentPromptStackLabel: "{{count}} 条代理提示",
     durationUnitSeconds: "秒",
     durationUnitMinutes: "分",
     durationUnitHours: "时",
@@ -66,6 +79,9 @@ export const CATALOGS = {
     promptHistoryPromptLabelGeneric: "提示",
     expandPrompt: "展開提示",
     collapsePrompt: "收起提示",
+    expandAgentPrompts: "展開 {{count}} 條代理提示",
+    collapseAgentPrompts: "收起 {{count}} 條代理提示",
+    agentPromptStackLabel: "{{count}} 條代理提示",
     durationUnitSeconds: "秒",
     durationUnitMinutes: "分",
     durationUnitHours: "時",
@@ -83,6 +99,9 @@ export const CATALOGS = {
     promptHistoryPromptLabelGeneric: "提示",
     expandPrompt: "展開提示",
     collapsePrompt: "收起提示",
+    expandAgentPrompts: "展開 {{count}} 條代理提示",
+    collapseAgentPrompts: "收起 {{count}} 條代理提示",
+    agentPromptStackLabel: "{{count}} 條代理提示",
     durationUnitSeconds: "秒",
     durationUnitMinutes: "分",
     durationUnitHours: "時",
@@ -100,6 +119,9 @@ export const CATALOGS = {
     promptHistoryPromptLabelGeneric: "Ƥŕōḿƥţ",
     expandPrompt: "Ēxƥàńď ƥŕōḿƥţ",
     collapsePrompt: "Ćōĺĺàƥśē ƥŕōḿƥţ",
+    expandAgentPrompts: "Ēxƥàńď {{count}} àĝēńţ ƥŕōḿƥţś",
+    collapseAgentPrompts: "Ćōĺĺàƥśē {{count}} àĝēńţ ƥŕōḿƥţś",
+    agentPromptStackLabel: "{{count}} àĝēńţ ƥŕōḿƥţś",
     durationUnitSeconds: "ś",
     durationUnitMinutes: "ḿ",
     durationUnitHours: "ĥ",

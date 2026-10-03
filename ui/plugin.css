@@ -99,10 +99,11 @@
   cursor: pointer;
 }
 
-/* Prompts sent by another task's agent, when the operator opts in
- * (`display_agent_prompt_grey`): a soft neutral grey that reads in both
- * themes. Declared before the favorite rules below, which carry the same
- * specificity, so a favorited agent prompt keeps the favorite highlight. */
+/* Prompts sent by another task's agent, when the operator picks the soft grey
+ * agent prompt style (`display_5_agent_prompt_style`): a soft neutral grey that
+ * reads in both themes. Declared before the favorite rules below, which carry
+ * the same specificity, so a favorited agent prompt keeps the favorite
+ * highlight. */
 .ph-plugin-row-bubble.ph-plugin-agent {
   background: color-mix(in srgb, var(--muted-foreground, #71717a) 14%, transparent);
 }
@@ -273,6 +274,176 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* ── Agent prompt stacks (`display_6_agent_prompt_display: collapse`) ───── */
+
+/* One folded card per run of consecutive agent-sent prompts. The wrapper is
+ * also the hover/focus region, and expanding replaces the deck with the run's
+ * rows *inside* it, so the pointer never leaves the element keeping it open —
+ * moving onto a row is not a leave. */
+.ph-plugin-stack {
+  padding: 0.25rem 0;
+}
+
+/* The toggle stays mounted in both states: the deck while folded, a compact
+ * count header while expanded. Keeping one node is what stops the swap from
+ * dropping the keyboard focus that expanded the card. */
+.ph-plugin-stack-toggle {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ph-plugin-stack-toggle:focus-visible {
+  outline: 2px solid var(--ring, #71717a);
+  outline-offset: 2px;
+}
+
+/* Reserves the sheets' 4px/8px overhang so nothing clips at the scroller's
+ * edge and the folded card occupies a plain row's box. `isolation` makes the
+ * deck its own stacking context, so the z-indexes below order its parts without
+ * leaking into the rest of the panel.
+ *
+ * The deck's colours come from three custom properties so it follows the agent
+ * colour setting rather than deciding it: by default the reference's prompt
+ * colour (`--primary`, as `.ph-plugin-row-bubble`), and with soft grey (the
+ * `ph-plugin-stack-grey` modifier) the same `--muted-foreground` mix as
+ * `.ph-plugin-agent`. `--ph-stack-front` / `-fill` / `-edge` are the mix
+ * percentages of the front bubble, the cards' fill, and the cards' 1px border. */
+.ph-plugin-stack-deck {
+  --ph-stack-ink: var(--primary, #4f46e5);
+  --ph-stack-front: 30%;
+  --ph-stack-fill: 14%;
+  --ph-stack-edge: 40%;
+  position: relative;
+  display: block;
+  isolation: isolate;
+  margin: 0 8px 8px 0;
+}
+
+.ph-plugin-stack-deck.ph-plugin-stack-grey {
+  --ph-stack-ink: var(--muted-foreground, #71717a);
+  --ph-stack-front: 14%;
+  --ph-stack-fill: 8%;
+  --ph-stack-edge: 32%;
+}
+
+/* The cards under the front bubble. Laid over an opaque `var(--card)` base: a
+ * translucent card would let the cards behind it show through, and the
+ * outlines would read *on top of* the front bubble instead of behind it.
+ * Opaque, only the strips that stick out past the front bubble (right and
+ * bottom) are visible. */
+.ph-plugin-stack-sheet {
+  position: absolute;
+  inset: 0;
+  border: 1px solid color-mix(in srgb, var(--ph-stack-ink) var(--ph-stack-edge), transparent);
+  border-radius: var(--radius, 0.375rem);
+  background:
+    linear-gradient(
+      color-mix(in srgb, var(--ph-stack-ink) var(--ph-stack-fill), transparent),
+      color-mix(in srgb, var(--ph-stack-ink) var(--ph-stack-fill), transparent)
+    ),
+    var(--card, #ffffff);
+}
+
+/* The deck's two cards are its first two spans and the front bubble is the
+ * third, so `nth-of-type` (which counts spans, not children) targets the
+ * sheets by position. `:first-of-type`/`:last-of-type` would not: the front
+ * span is not the last span, and the second sheet matched neither and stayed
+ * un-offset — measured in Chromium, where only one outline showed. The nearer
+ * card (4px) sits in front of the farther one (8px). */
+.ph-plugin-stack-sheet:nth-of-type(1) {
+  z-index: 1;
+  transform: translate(4px, 4px);
+}
+
+.ph-plugin-stack-sheet:nth-of-type(2) {
+  z-index: 0;
+  transform: translate(8px, 8px);
+}
+
+/* The run's newest prompt, painted above both cards. Its own fill is made
+ * opaque the same way, and takes the deck's colour variables: the two-class
+ * selector outranks both `.ph-plugin-row-bubble` and the translucent
+ * `.ph-plugin-row-bubble.ph-plugin-agent` rule above. */
+.ph-plugin-row-bubble.ph-plugin-stack-front {
+  position: relative;
+  z-index: 2;
+  background:
+    linear-gradient(
+      color-mix(in srgb, var(--ph-stack-ink) var(--ph-stack-front), transparent),
+      color-mix(in srgb, var(--ph-stack-ink) var(--ph-stack-front), transparent)
+    ),
+    var(--card, #ffffff);
+}
+
+/* The small pill both corners share: the folded stack's `+n` count on the
+ * top-right and, when the numbers setting asks for it, a prompt's `#N` ordinal
+ * on the top-left of its bubble. It floats half outside the bubble (so it sits
+ * on a sibling of the bubble, whose `overflow: hidden` would clip it), and the
+ * ring in the card colour separates it from whatever is behind it. */
+.ph-plugin-pill {
+  position: absolute;
+  z-index: 3;
+  box-sizing: border-box;
+  min-width: 1rem;
+  height: 1rem;
+  padding: 0 0.25rem;
+  border-radius: 9999px;
+  background: var(--muted-foreground, #71717a);
+  box-shadow: 0 0 0 2px var(--card, #ffffff);
+  color: var(--card, #ffffff);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1rem;
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.ph-plugin-stack-count {
+  top: -7px;
+  right: -7px;
+}
+
+.ph-plugin-number-pill {
+  top: -7px;
+  left: -7px;
+}
+
+/* The expanded header is a slim label, not a row: no row padding. */
+.ph-plugin-row.ph-plugin-stack-head {
+  padding: 0;
+}
+
+/* The label is block-level (`flex` + `fit-content`, not `inline-flex`) so it
+ * adds no line-box strut around itself — an inline label sat in a 24px box for
+ * a 16px chip in Chromium. */
+.ph-plugin-stack-label {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: 0.125rem;
+  padding: 0 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--muted-foreground, #71717a) 32%, transparent);
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--muted-foreground, #71717a) 10%, transparent);
+  color: var(--muted-foreground, #71717a);
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.ph-plugin-stack-icon {
+  flex: 0 0 auto;
+  width: 0.75rem;
+  height: 0.75rem;
 }
 
 /* ── Sentinel + loading-older indicator ─────────────────────────────────── */

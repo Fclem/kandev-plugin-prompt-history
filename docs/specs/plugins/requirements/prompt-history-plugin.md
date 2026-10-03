@@ -184,13 +184,15 @@ host's standard plugin settings surface.
 #### Acceptance criteria
 
 - **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-004.1:** The manifest shall declare a
-  `config_schema` with exactly five properties — the numbering, send-time and
-  duration booleans plus the send-time format and agent-prompt style selectors
-  (AC-…-004.6, AC-…-004.7) — each defaulting to the panel's original
-  appearance, and shall mark both selectors required so the settings form
-  cannot present an unset state for them. The host shall render them at
-  Settings > Plugins > Prompt History, and the settings page (not the plugin)
-  shall persist them.
+  `config_schema` with exactly nine properties — the numbering, send-time and
+  duration booleans plus six selectors: the number style, send-time format,
+  agent prompt style, agent prompt display, agent stack minimum, and agent stack
+  expand trigger (AC-…-004.6 to AC-…-004.11) — each defaulting to the panel's
+  original appearance, and shall mark all six selectors required so the
+  settings form cannot present an unset state for them. The host shall render
+  them at Settings > Plugins > Prompt History, and the settings page (not the
+  plugin) shall persist them. The settings shall be grouped by topic as far as
+  the host's flat form allows (AC-…-004.12).
 - **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-004.2:** The panel shall read the stored
   config once per mount from `GET /api/plugins/{id}/config` through the Host's
   scoped fetch and apply each stored boolean: a disabled duration shall render
@@ -217,14 +219,76 @@ host's standard plugin settings surface.
   `dateTime` attribute in both modes. An absent value (a hand-edited config, or
   a record written before the field was required) shall read as `relative`.
 - **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-004.7:** The manifest shall declare a
-  required `display_5_agent_style` selector whose values are exactly `normal`,
-  `soft grey`, and `hide`, defaulting to `normal`. `normal` shall render
-  agent-sent prompts like every other prompt (keeping the agent glyph); `soft
-  grey` shall render them on a soft grey bubble, with the favorite highlight
-  still winning for a prompt that is both agent-sent and favorited; `hide`
-  shall render no agent-sent row at all, while leaving the remaining prompts'
-  server-assigned ordinals and the panel's pagination behavior unchanged. An
-  absent or unknown value shall read as `normal`.
+  required `display_5_agent_prompt_style` selector — the colour of prompts sent
+  by another task's agent, independent of how they are listed — whose values
+  are exactly `default` and `soft grey`, defaulting to `default`. `default`
+  shall render agent-sent prompts like every other prompt (keeping the agent
+  glyph); `soft grey` shall render them on a soft grey bubble, with the favorite
+  highlight still winning for a prompt that is both agent-sent and favorited.
+  The style shall apply identically whether the agent prompt is a plain row or
+  the front of a stack, and shall colour the stack's cards to match. An absent
+  or unknown value shall read as `default`.
+- **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-004.8:** The manifest shall declare a
+  required `display_6_agent_prompt_display` selector — how agent-sent prompts
+  are listed, independent of their colour — whose values are exactly
+  `default`, `hide`, and `collapse`, defaulting to `default`. `default` shall
+  list one row per prompt; `hide` shall render no agent-sent row at all, while
+  leaving the remaining prompts' server-assigned ordinals and the panel's
+  pagination behavior unchanged. `collapse` shall fold each run of consecutive
+  agent-sent rows that is at least as long as the configured minimum
+  (AC-…-004.9) into one stacked card — the run's newest prompt on a front
+  bubble, with two more cards behind it of which only the strips along its
+  right and bottom edges are visible (the front bubble shall be opaque, so no
+  outline shows through it), drawn from the same `color-mix` colour model and
+  readable in both themes. A small pill on the card's top-right corner shall
+  read `+n`, the number of prompts folded in behind the front one (`+2` for a
+  run of three), and the card's meta column shall report the front row's own
+  send time and duration. The card shall be a focusable `button` carrying
+  `aria-expanded` and a catalog label. The expanded run shall render a slim
+  count header — with no send time or duration of its own and no more height
+  than its label — above the ordinary rows, which keep their ordinals, agent
+  glyph, long-text expand control, transcript navigation, and favorite
+  highlight. When a stack folds after the user scrolled down past its top, the
+  panel shall scroll back so the stack sits where it did when it expanded,
+  leaving the next non-agent prompt directly below the folded card, and shall
+  leave a scroll upwards alone. Agent rows outside a stack shall render as
+  ordinary rows with no card chrome, and folding shall leave the remaining
+  prompts' server-assigned ordinals and the panel's pagination behavior
+  unchanged. An absent or unknown value shall read as `default`.
+- **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-004.9:** The manifest shall declare a
+  required integer selector `display_7_agent_stack_min` whose values are
+  exactly 2, 3, 4, and 5, defaulting to 2: the smallest run of consecutive
+  agent-sent prompts that `collapse` folds into a stack, so a shorter run stays
+  as separate rows. The setting is meaningful only for `collapse`; the host's
+  settings form renders every declared property and has no conditional
+  visibility, so the field shall always be listed and its description shall say
+  when it applies. The panel shall apply only an exact stored member; an
+  absent, out-of-range, fractional, or non-numeric value shall read as 2.
+- **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-004.10:** The manifest shall declare a
+  required selector `display_8_agent_stack_expand` whose values are exactly
+  `hover` and `click`, defaulting to `hover`, and meaningful only for
+  `collapse` (always listed, with a description saying so). With `hover` a
+  stack shall expand on hover, on focus, and on a press, fold back when the
+  pointer or the focus leaves it, and shall not re-expand on hover after a
+  scroll hand-back until the pointer moves. With `click` a stack shall expand
+  and fold only when its button is activated (a click, Enter, or Space); hover,
+  focus, and leaving shall not change it. Either way the stack shall stay
+  operable from the keyboard. An absent or unknown value shall read as `hover`.
+- **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-004.11:** The manifest shall declare a
+  required selector `display_1b_number_style` whose values are exactly `inline`
+  and `pill`, defaulting to `inline`, applying when numbering is shown.
+  `inline` shall render the `#N` ordinal in front of the prompt text; `pill`
+  shall render it in the same pill the agent stack uses for its count, on the
+  top-left corner of the prompt bubble (and of a folded stack's front bubble),
+  outside the bubble's clipped box, and the prompt text shall then not reserve
+  space for it. The accessible row label shall be unaffected by the style. An
+  absent or unknown value shall read as `inline`.
+- **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-004.12:** The settings form the host
+  renders is a flat list with no section support, so the manifest shall group
+  the settings by topic with the means it has: the property keys shall sort
+  into topic order (numbers, time, agent prompts, agent stacks) with each
+  topic's settings adjacent, and every title shall start with its topic
+  (`Numbers: `, `Time: `, `Agent prompts: `, `Agent stacks: `).
 
 ## Out of scope
 
