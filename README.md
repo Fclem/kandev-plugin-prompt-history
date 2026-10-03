@@ -37,11 +37,11 @@ first, in a scrollable list you can read at a glance and jump back into.
 The manifest's `config_schema` gives the panel nine operator settings, rendered by
 the host at **Settings > Plugins > Prompt History** and stored by the host. Every
 default reproduces the panel's original row, so an instance that never saved
-settings looks exactly as it always did.
-
-The host's form is a flat list with no sections, so the settings are grouped by
-topic two ways: they are listed topic by topic, and every label starts with its
-topic (`Numbers: …`, `Time: …`, `Agent prompts: …`, `Agent stacks: …`).
+settings looks exactly as it always did. Choose inline or pill numbers; set agent
+prompt color independently from whether agent prompts stay separate, are hidden,
+or collapse into stacks; and choose hover or click to expand those stacks. The
+[screenshot gallery](docs/screenshots.md) shows the appearance for several option
+combinations.
 
 | topic | setting | control | default |
 |---|---|---|---|
@@ -192,6 +192,7 @@ Full design contract:
 | [System design](docs/specs/plugins/system-design/prompt-history-plugin.md) | the panel's contracts and parity rules |
 | [Plan](docs/plans/prompt-history-plugin/plan.md) | how the plugin was planned and built |
 | [Changelog](CHANGELOG.md) | release history |
+| [Screenshot gallery](docs/screenshots.md) | panel styles for combinations of number, agent-prompt, and stack settings |
 
 ## Provenance
 
