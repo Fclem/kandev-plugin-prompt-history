@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- Generate the release-level `checksums.txt` from the package tarball instead of
+  copying its internal file checksums. The official marketplace rejects a
+  checksum asset without the tarball's digest and retains the previous version.
+
 ## [1.4.1] - 2026-10-03
 
 ### Fixed
