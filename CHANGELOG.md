@@ -1,12 +1,14 @@
 # Changelog
 
-## [Unreleased]
+## [1.4.2] - 2026-10-10
 
 ### Fixed
 
 - Generate the release-level `checksums.txt` from the package tarball instead of
   copying its internal file checksums. The official marketplace rejects a
   checksum asset without the tarball's digest and retains the previous version.
+- Bump the plugin version to 1.4.2 so this package can replace an installed
+  1.4.1 release.
 
 ## [1.4.1] - 2026-10-03
 
