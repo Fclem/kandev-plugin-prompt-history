@@ -83,8 +83,9 @@ differently-versioned package to it.
 
 - `<id>-<version>.tar.gz` — the plugin package (with its own internal
   `checksums.txt` verified on install), and
-- `checksums.txt` — the package's internal file checksums, extracted from the
-  tarball for inspection and marketplace tooling.
+- `checksums.txt` — the SHA-256 of the release tarball, generated with
+  `sha256sum <id>-<version>.tar.gz`. This is separate from the archive's internal
+  `checksums.txt`, which covers its manifest, binaries, and UI files.
 
 ```sh
 # bump VERSION in Makefile + version in manifest.yaml first, then:
@@ -96,3 +97,34 @@ The workflows check out the kandev monorepo as a sibling so the local Go and
 TypeScript SDK paths resolve (see [development](development.md)). They pin one
 source revision for the SDK contract; advance that pin deliberately and rerun
 the backend and UI suites when adopting a newer SDK.
+
+### When the marketplace shows an older release
+
+Kandev reads the official marketplace's static index, not this repository's
+manifest or GitHub's latest release directly. The registry verifies each release
+before advancing its entry; an invalid release retains the previous catalog
+version. **Check for updates** clears the host cache, but cannot repair an invalid
+release.
+
+The release-level `checksums.txt` must contain a digest for the exact tarball
+filename. Uploading the archive's internal checksum list instead causes the
+registry error `checksums.txt has no digest for <id>-<version>.tar.gz`.
+
+To repair an affected release without rebuilding or changing its version,
+download its existing tarball, compute its SHA-256, and replace only the
+release-level checksum asset:
+
+```sh
+gh release download v<version> --repo Fclem/kandev-plugin-prompt-history \
+  --pattern 'kandev-plugin-prompt-history-<version>.tar.gz'
+sha256sum kandev-plugin-prompt-history-<version>.tar.gz > checksums.txt
+sha256sum --check checksums.txt
+gh release upload v<version> checksums.txt --clobber \
+  --repo Fclem/kandev-plugin-prompt-history
+```
+
+Run these commands in a fresh temporary directory. Keep the tarball and its
+internal checksums unchanged. After the official registry rebuilds successfully,
+select **Check for updates** in Kandev. Registry maintainers can also trigger a
+manual rebuild; replacing the asset does not immediately update the static index.
+
