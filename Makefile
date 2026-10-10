@@ -2,7 +2,7 @@
 	package package-host verify-package verify-package-host clean
 
 BIN := bin/kandev-plugin-prompt-history
-VERSION := 1.4.1
+VERSION := 1.4.2
 STAGE := .build/stage
 PKG_OUT := kandev-plugin-prompt-history-$(VERSION).tar.gz
 
