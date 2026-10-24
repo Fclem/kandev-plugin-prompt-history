@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.3] - 2026-10-24
+
+### Fixed
+
+- Declare the manifest `author` as `Fclem`, the repository owner, instead of
+  `kandev`. Kandev's marketplace and plugin details display this field as
+  "by …", so the plugin appeared to be published by Kandev.
+
 ## [1.4.2] - 2026-10-10
 
 ### Fixed

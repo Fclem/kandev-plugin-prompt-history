@@ -16,7 +16,7 @@ older-page auto-loading, live reconciliation, transcript navigation, and
 desktop/mobile placement — through the public Host contracts established by the
 [Host prerequisites package](prompt-history-extraction-host.md), without
 importing private stores or duplicating host-owned transport. It lives in the
-dedicated `kdlbs/kandev-plugin-prompt-history` repository, not in the Kandev
+dedicated `Fclem/kandev-plugin-prompt-history` repository, not in the Kandev
 monorepo. This document is authoritative only for the plugin's own behavior;
 the core panel remains the parity reference and stays registered and
 behaviorally unchanged until a later package migrates saved layouts and removes
@@ -36,15 +36,15 @@ core ownership.
 
 ### REQ-PLUGINS-PROMPT-HISTORY-PLUGIN-001: Production Plugin Package
 
-**Intent:** Ship Prompt History as an official, installable plugin with a
+**Intent:** Ship Prompt History as an installable community plugin with a
 declared identity and least-privilege manifest.
 
 #### Acceptance criteria
 
 - **AC-PLUGINS-PROMPT-HISTORY-PLUGIN-001.1:** When the package is installed on
   a Kandev host at or above the declared `min_kandev_version`, the host shall
-  activate the plugin with id `kandev-plugin-prompt-history`, author `kandev`,
-  and `repo_url` pointing at `https://github.com/kdlbs/kandev-plugin-prompt-history`.
+  activate the plugin with id `kandev-plugin-prompt-history`, author `Fclem`,
+  and `repo_url` pointing at `https://github.com/Fclem/kandev-plugin-prompt-history`.
   The manifest `id`, the `go.mod` module, the Makefile `BIN` and its
   derived `PKG_OUT`, and the UI registration id shall all use that same
   identity, and the Makefile `VERSION` shall match the manifest

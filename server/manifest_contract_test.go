@@ -88,7 +88,7 @@ func TestManifestIdentityMetadata(t *testing.T) {
 	manifest := readDeclaration(t, "manifest.yaml")
 	for _, want := range []struct{ key, value string }{
 		{"display_name", `"Prompt History"`},
-		{"author", `"kandev"`},
+		{"author", `"Fclem"`},
 		{"repo_url", `"https://github.com/Fclem/kandev-plugin-prompt-history"`},
 		{"categories", `["tools"]`},
 	} {

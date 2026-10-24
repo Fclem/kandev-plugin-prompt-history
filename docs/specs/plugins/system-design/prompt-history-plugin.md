@@ -12,7 +12,7 @@ requirements:
 ## Purpose and boundaries
 
 This design covers the production Prompt History plugin: the package in
-`kdlbs/kandev-plugin-prompt-history` and the one-shot parity proof against a
+`Fclem/kandev-plugin-prompt-history` and the one-shot parity proof against a
 disposable development instance. The plugin owns presentation and derivation
 only. Conversation access, authorization, sanitization, pagination
 transport, live reconciliation, lifecycle fencing, and transcript navigation
@@ -43,8 +43,9 @@ derived `PKG_OUT`, and the `window.registerKandevPlugin` id:
 Manifest fields, per the [manifest reference](../../../public/plugins-manifest.md):
 
 - `id: "kandev-plugin-prompt-history"`, `api_version: 2`,
-  `version: "1.4.1"`, `display_name: "Prompt History"`, a one-line
-  `description`, `author: "kandev"`, `categories: ["tools"]`, and
+  `version: "1.4.3"`, `display_name: "Prompt History"`, a one-line
+  `description`, `author: "Fclem"` (the publishing repository's owner),
+  `categories: ["tools"]`, and
   `repo_url: "https://github.com/Fclem/kandev-plugin-prompt-history"` (the
   publishing repo; the scaffold's `kdlbs/…` placeholder 404s).
 - `min_kandev_version` — the first release carrying the browser
